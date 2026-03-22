@@ -1,0 +1,62 @@
+\documentclass[11pt]{article}
+
+\usepackage[left=0.8in,right=0.8in,top=0.9in,bottom=0.9in]{geometry}
+\usepackage{amsmath}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{microtype}
+
+\linespread{0.97}
+
+\setlength{\parindent}{15pt}
+\setlength{\parskip}{4pt}
+
+\setlist[itemize]{leftmargin=*, itemsep=1pt, topsep=2pt}
+\begin{document}
+
+\begin{center}
+{\Large \textbf{Speculative Decoding in Practice: Systems-Level Optimization of Draft - Verify Inference}}\\[7pt]
+COMPSCI 690AB - Systems for Deep Learning\\[4pt]
+Harish Srinivasan, Pooja Rajeev
+\end{center}
+
+\noindent\textbf{Motivation.}
+Autoregressive decoding in large language models (LLMs) requires one forward pass per token, creating a sequential bottleneck that limits GPU utilization and increases latency. Speculative Decoding (Leviathan et al., 2022) introduces a draft--verify paradigm in which a smaller draft model proposes multiple tokens while a larger target model verifies them in parallel, reducing expensive target forward passes without altering the output distribution. While algorithmically elegant, its practical performance depends heavily on systems-level factors such as synchronization overhead, memory usage, and verification strategy.
+
+\noindent\textbf{Foundational Papers.}
+We build on key recent work including SpecInfer (tree-based speculative inference) and adaptive speculative decoding (AdaSD):
+\begin{itemize}
+    \item \href{https://arxiv.org/abs/2305.09781}{SpecInfer: Accelerating Large Language Model Serving with Tree-Based Speculative Inference and Verification} (ASPLOS ’24)
+    \item \href{https://arxiv.org/abs/2512.11280}{AdaSD: Adaptive Speculative Decoding} (arXiv ’25)
+\end{itemize}
+\noindent\textbf{Core Reproduction.}
+We will conduct an empirical re-implementation using HuggingFace Transformers on a single NVIDIA T4 GPU. Our pipeline includes:
+\begin{itemize}
+\item Standard autoregressive baselines (greedy and stochastic sampling).
+\item Linear speculative decoding utilizing a fixed speculative length $k$.
+\item Entropy-driven adaptive logic to manage speculation depth and minimize Wasted Drafting Time (WDT).
+\item Telemetry instrumentation for forward-pass accounting and KV-cache efficiency.
+\end{itemize}
+We will report throughput (tokens/sec), TTFT, and TPOT. Efficiency is assessed via acceptance rate ($\alpha$), expected length ($\tau$), WDT and system level metrics.
+
+\noindent\textbf{Systems Extensions.}
+
+\textit{(1) Block Verification.}
+We replace naive token-by-token prefix checking with vectorized block-based verification to reduce host-device synchronization and control overhead. We compare naive versus block verification in terms of latency distribution and GPU efficiency.
+
+\textit{(2) Draft Model Sweep.}
+We evaluate multiple draft sizes (distilgpt2 and GPT-2 small) against a GPT-2 medium target to characterize the tradeoff between draft quality, acceptance rate, throughput, and memory footprint.
+
+\textit{(3) Adaptive Lookahead (AdaSD-inspired).}
+We implement a lightweight entropy-based controller that dynamically adjusts lookahead $k$ during decoding. We compare fixed-$k$ and adaptive strategies under different workloads.
+
+\textit{(4) Tree-Based Speculation (SpecInfer-lite).}
+Inspired by SpecInfer (ASPLOS 2024), we implement a simplified tree-based drafting strategy with small branching factor and shallow depth. We analyze its impact on forward-pass reduction, memory overhead, and tail latency relative to linear speculation.
+
+\noindent\textbf{Evaluation Plan.}
+Experiments will be conducted under greedy and sampling regimes with varying context lengths. We will compare autoregressive decoding, linear speculative decoding, linear + block verification, adaptive lookahead, and tree-based speculation.
+
+\noindent\textbf{Expected Contribution.}
+This project provides (1) a reproducible implementation of speculative decoding, (2) a systems-level characterization of its performance bottlenecks, and (3) empirical evaluation of structural and adaptive optimizations under constrained hardware. Our focus is on practical inference efficiency rather than model accuracy, aligning with the systems goals of COMPSCI 690AB.
+\enlargethispage{1\baselineskip}
+\end{document}

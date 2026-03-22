@@ -1,0 +1,32 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+
+
+# LaTeX auxiliary files
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+*.fdb_latexmk
+*.fls
+
+# Bibliography and index
+*.blg
+*.bbl
+*.ind
+*.idx
+*.ilg
+*.bcf
+*.run.xml
+
+# PDF files generated from LaTeX
+reports/**/*.pdf

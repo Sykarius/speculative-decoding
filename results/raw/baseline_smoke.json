@@ -1,0 +1,12 @@
+{
+  "timestamp": "2026-03-23T06:49:06.676442+00:00",
+  "method": "autoregressive_greedy",
+  "model": "distilgpt2",
+  "prompt": "Speculative decoding helps inference by",
+  "max_new_tokens": 40,
+  "generated_tokens": 40,
+  "total_elapsed_sec": 1.8723037499985367,
+  "generation_elapsed_sec": 0.9756465840000601,
+  "tokens_per_sec": 40.9984523658185,
+  "output_text": "Speculative decoding helps inference by using the following methods:\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+}

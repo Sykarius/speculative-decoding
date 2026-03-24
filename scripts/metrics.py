@@ -2,6 +2,7 @@ import time
 from dataclasses import dataclass, field
 import json
 import os
+from datetime import UTC, datetime
 
 OUTPUT_DIR = "results/raw"
 
@@ -16,7 +17,7 @@ class BenchmarkMetadata:
     prompt: str
     prompt_tokens: int
     max_new_tokens: int
-    timestamp: float = field(default_factory=time.perf_counter)
+    timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
 
 
 @dataclass
@@ -27,6 +28,7 @@ class Session:
     generated_tokens: int = 0
     generated: list = field(default_factory=list)
     output_text: str = ""
+    extra_metrics: dict = field(default_factory=dict)
 
     def record_metadata(self, **kwargs):
         """
@@ -58,11 +60,14 @@ class Session:
     def record_output(self, output_text: str):
         self.output_text = output_text
 
+    def record_extra(self, **kwargs):
+        self.extra_metrics.update(kwargs)
+
     def summarize(self):
         total_elapsed = self.token_timestamps[-1] - self.token_timestamps[0] if self.token_timestamps else 0.0
         tokens_per_sec = self.generated_tokens / total_elapsed if total_elapsed > 0 else 0.0
         tpot_sec = (total_elapsed - self.first_token_time) / self.generated_tokens if self.generated_tokens > 0 else 0.0
-        return {
+        summary = {
             "timestamp": self.metadata.timestamp,
             "target_model": self.metadata.target_model,
             "draft_model": self.metadata.draft_model,
@@ -79,6 +84,8 @@ class Session:
             "tokens_per_sec": tokens_per_sec,
             "output_text": self.output_text,
         }
+        summary.update(self.extra_metrics)
+        return summary
     
     def write_summary(self, filepath):
         summary = self.summarize()

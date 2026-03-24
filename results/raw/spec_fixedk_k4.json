@@ -1,0 +1,22 @@
+{
+  "timestamp": "2026-03-24T04:12:43.602021+00:00",
+  "target_model": "distilgpt2",
+  "draft_model": "distilgpt2",
+  "method": "speculative_fixed_k",
+  "device": "cpu",
+  "dtype": "torch.float32",
+  "prompt": "Speculative decoding helps inference by",
+  "prompt_tokens": 7,
+  "generated_tokens": 32,
+  "max_new_tokens": 32,
+  "ttft_sec": 0.09478595900145592,
+  "tpot_sec": 0.013770281249890104,
+  "total_elapsed_sec": 0.5354349589979392,
+  "tokens_per_sec": 59.764495131000885,
+  "output_text": "Speculative decoding helps inference by using the following methods:\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n",
+  "k": 4,
+  "drafted_tokens_total": 26,
+  "accepted_draft_tokens": 26,
+  "acceptance_rate": 1.0,
+  "verification_rounds": 7
+}

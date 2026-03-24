@@ -64,10 +64,12 @@ python scripts/benchmark.py --target <model_name> --prompt "<your_prompt>" [OPTI
 | `--max_new_tokens` | `int` | No | `32` | The maximum number of new tokens to generate. |
 | `--method` | `str` | No | `baseline_greedy` | The decoding method to use. |
 | `--device` | `str` | No | `cpu` | The device to run the benchmark on (e.g., 'cpu' or 'cuda' or 'mps'). |
+| `--k` | `int` | No | `4` | Fixed lookahead for `speculative_fixed_k`. |
 
 ### Supported Methods:
 
 - `baseline_greedy`: Standard autoregressive language modeling. It generates one token at a time by selecting the highest-probability token from the target model's output distribution. This method does not utilize a draft model or speculative decoding techniques. 
+- `speculative_fixed_k`: Linear speculative decoding with fixed lookahead `k`. Requires `--draft` to specify the draft model.
 
 
 ### Example
@@ -75,4 +77,9 @@ python scripts/benchmark.py --target <model_name> --prompt "<your_prompt>" [OPTI
 #### Basic Greedy
 ```sh
 python scripts/benchmark.py --target distilgpt2 --prompt "The future of AI is" --max_new_tokens 50
+```
+
+#### Fixed-k Speculative
+```sh
+python scripts/benchmark.py --target distilgpt2 --draft distilgpt2 --prompt "The future of AI is" --method speculative_fixed_k --k 4 --max_new_tokens 50 --device cpu
 ```

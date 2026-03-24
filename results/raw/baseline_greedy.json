@@ -1,0 +1,19 @@
+{
+  "timestamp": 2960770.53225675,
+  "target_model": "distilgpt2",
+  "draft_model": null,
+  "method": "baseline_greedy",
+  "device": "cpu",
+  "dtype": "torch.float32",
+  "prompt": "Speculative decoding helps inference by",
+  "prompt_tokens": 7,
+  "generated_tokens": 32,
+  "max_new_tokens": 32,
+  "ttft_sec": 0.8379847500473261,
+  "tpot_sec": 0.005762417960795574,
+  "total_elapsed_sec": 1.0223821247927845,
+  "tokens_per_sec": 31.299451764657693,
+  "output_text": [
+    "\n using the following methods:\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
+  ]
+}

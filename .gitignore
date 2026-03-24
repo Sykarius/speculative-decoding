@@ -30,3 +30,6 @@ wheels/
 
 # PDF files generated from LaTeX
 reports/**/*.pdf
+
+# Ignore .env
+.env

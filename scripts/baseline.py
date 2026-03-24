@@ -1,8 +1,3 @@
-import json
-import os
-import time
-from datetime import datetime, UTC
-
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from metrics import Session
@@ -56,7 +51,7 @@ def run(target_model: str, draft_model: str, prompt: str, max_new_tokens: int, d
         full_list = inputs["input_ids"][0].tolist() + session.generated
         full_ids = torch.tensor([full_list], device=device)
         
-    output_text = tokenizer.decode(full_ids, skip_special_tokens=True)
+    output_text = tokenizer.decode(full_ids[0], skip_special_tokens=True)
     session.record_output(output_text)
     session.write_summary("baseline_greedy.json")
 

@@ -1,5 +1,5 @@
 {
-  "timestamp": 2960770.53225675,
+  "timestamp": "2026-03-24T04:12:59.410110+00:00",
   "target_model": "distilgpt2",
   "draft_model": null,
   "method": "baseline_greedy",
@@ -9,11 +9,9 @@
   "prompt_tokens": 7,
   "generated_tokens": 32,
   "max_new_tokens": 32,
-  "ttft_sec": 0.8379847500473261,
-  "tpot_sec": 0.005762417960795574,
-  "total_elapsed_sec": 1.0223821247927845,
-  "tokens_per_sec": 31.299451764657693,
-  "output_text": [
-    "\n using the following methods:\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
-  ]
+  "ttft_sec": 0.029695500001253095,
+  "tpot_sec": 0.006022200499955943,
+  "total_elapsed_sec": 0.22240591599984327,
+  "tokens_per_sec": 143.88106474659853,
+  "output_text": "\n using the following methods:\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n"
 }

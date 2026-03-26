@@ -1,6 +1,6 @@
 # Project TODO (Shared)
 
-This file tracks remaining work from the project proposal. Keep it short and update as items are completed.
+
 
 ## Next implementations
 

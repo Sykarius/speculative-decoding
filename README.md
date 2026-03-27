@@ -62,24 +62,68 @@ python scripts/benchmark.py --target <model_name> --prompt "<your_prompt>" [OPTI
 | `--prompt` | `str` | **Yes** | N/A | The input prompt to use for generation. |
 | `--draft` | `str` | No | `None` | The Hugging Face Hub model ID of draft model to use for speculative decoding (not used in baseline). |
 | `--max_new_tokens` | `int` | No | `32` | The maximum number of new tokens to generate. |
-| `--method` | `str` | No | `baseline_greedy` | The decoding method to use. |
+| `--method` | `str` | No | `baseline` | The decoding method to use. |
 | `--device` | `str` | No | `cpu` | The device to run the benchmark on (e.g., 'cpu' or 'cuda' or 'mps'). |
-| `--k` | `int` | No | `4` | Fixed lookahead for `speculative_fixed_k`. |
+| `--gamma` | `int` | No | `4` | Fixed lookahead for speculative methods. |
+| `--temperature` | `float` | No | `1.0` | Temperature for stochastic speculative decoding.
+| `--adaptive` | `str` | No | `None` | Type of adaptive strategy to use (eg. 'aimd') |
+| `--gamma_range` | `str` | No | `None` | Bounds of the lookahead `gamma` when adaptive strategy is used |
 
 ### Supported Methods:
 
-- `baseline_greedy`: Standard autoregressive language modeling. It generates one token at a time by selecting the highest-probability token from the target model's output distribution. This method does not utilize a draft model or speculative decoding techniques. 
-- `speculative_fixed_k`: Linear speculative decoding with fixed lookahead `k`. Requires `--draft` to specify the draft model.
-
+- `baseline`: Standard autoregressive language modeling. It generates one token at a time by selecting the highest-probability token from the target model's output distribution. This method does not utilize a draft model or speculative decoding techniques. 
+- `speculative_greedy`: Linear speculative decoding with fixed lookahead `gamma`. Requires `--draft` to specify the draft model. It verifies the draft tokens greedily
+- `speculative`: Linear speculative decoding with fixed lookahead `gamma`. Requires `--draft` to specify the draft model. It verifies the draft tokens stochastically
 
 ### Example
 
-#### Basic Greedy
+#### Baseline
 ```sh
-python scripts/benchmark.py --target distilgpt2 --prompt "The future of AI is" --max_new_tokens 50
+python scripts/benchmark.py \
+    --target 'meta-llama/Llama-3.1-8B' \
+    --prompt "The future of AI is" \
+    --max_new_tokens 50 \
+    --device cpu
 ```
 
-#### Fixed-k Speculative
+#### Fixed-Window Speculative Decoding Greedy Approach
 ```sh
-python scripts/benchmark.py --target distilgpt2 --draft distilgpt2 --prompt "The future of AI is" --method speculative_fixed_k --k 4 --max_new_tokens 50 --device cpu
+python scripts/benchmark.py \
+    --target 'meta-llama/Llama-3.1-8B' \
+    --draft 'meta-llama/Llama-3.2-1B' \
+    --prompt "The future of AI is" \
+    --max_new_tokens 50 \
+    --method speculative_greedy \
+    --gamma 4 \
+    --device cpu
+```
+
+#### Fixed-Window Speculative Decoding Stochastic Approach
+
+```sh
+python scripts/benchmark.py \
+    --target 'meta-llama/Llama-3.1-8B' \
+    --draft 'meta-llama/Llama-3.2-1B' \
+    --prompt "The future of AI is" \
+    --max_new_tokens 50 \
+    --method speculative \
+    --gamma 4 \
+    --temperature 1.0 \
+    --device cpu
+```
+
+#### Adaptive Speculative Decoding
+
+```sh
+python scripts/benchmark.py \
+    --target 'meta-llama/Llama-3.1-8B' \
+    --draft 'meta-llama/Llama-3.2-1B' \
+    --prompt "The future of AI is" \
+    --max_new_tokens 50 \
+    --method speculative \
+    --gamma 4 \
+    --temperature 1.0 \
+    --adaptive aimd \
+    --gamma_range 1 16 \
+    --device cpu
 ```

@@ -1,10 +1,54 @@
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, asdict
 import json
 import os
 from datetime import UTC, datetime
+from typing import List, Callable, Tuple
+import torch
+import inspect
 
 OUTPUT_DIR = "results/raw"
+
+class DeviceTime:
+
+    def __init__(self, device: str | torch.device):
+        self.device = str(device).lower()
+        self._start_time = 0.0
+        self.elapsed_time = 0.0
+
+    def _sync(self):
+        if self.device == "cuda":
+            torch.cuda.synchronize(self.device)
+        elif self.device == "mps":
+            torch.mps.synchronize()
+    
+    def __enter__(self):
+        self._sync()
+        self._start_time = time.perf_counter()
+        return self
+    
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self._sync()
+        end_time = time.perf_counter()
+        self.elapsed_time = end_time - self._start_time
+    
+
+def profile(func: Callable) -> Callable:
+    def wrapper(*args, **kwargs):
+
+        sig = inspect.signature(func)
+        bound_args = sig.bind(*args, **kwargs)
+        bound_args.apply_defaults()
+        device = bound_args.arguments.get('device')
+
+        if device is None:
+            raise ValueError(f"The decorated function {func.__name__} requires a 'device' argument for profiling.")
+    
+        with DeviceTime(device) as timer:
+            result = func(*args, **kwargs)
+        
+        return result, timer.elapsed_time
+    return wrapper
 
 
 @dataclass(frozen=True)
@@ -17,18 +61,71 @@ class BenchmarkMetadata:
     prompt: str
     prompt_tokens: int
     max_new_tokens: int
+    gamma: int | None = None
+    gamma_range: Tuple[int, int] | None = None
+    temperature: float | None = None
+    adaptive: str | None = None
     timestamp: str = field(default_factory=lambda: datetime.now(UTC).isoformat())
+    
+@dataclass
+class StepTrace:
+    step_id: int
+    draft_window_size: int
+    accepted_tokens: int
+    draft_time_ms: float
+    verify_time_ms: float
+
+    @property
+    def efficiency(self):
+        if self.draft_window_size == 0:
+            return 0.0
+        return self.accepted_tokens / self.draft_window_size
+    
+    def to_dict(self):
+        data = asdict(self)
+        data['efficiency'] = self.efficiency
+        return data
+
+
+@dataclass
+class SpeculativeMetrics:
+    drafted_tokens_total: int = 0
+    accepted_tokens_total: int = 0
+    verification_rounds: int = 0
+    step_traces: List[StepTrace] = field(default_factory=list)
+
+    @property
+    def acceptance_rate(self):
+        return self.accepted_tokens_total / self.drafted_tokens_total if self.drafted_tokens_total > 0 else 0.0
+
+    def to_dict(self):
+        data = asdict(self)
+        data['acceptance_rate'] = self.acceptance_rate
+        data['step_traces'] = [trace.to_dict() for trace in self.step_traces]
+        return data
+    
+    def update(self, proposed: list, accepted: int, k: int, draft_time_ms: float, verify_time_ms: float):
+        self.drafted_tokens_total += len(proposed)
+        self.accepted_tokens_total += accepted
+        self.verification_rounds += 1
+        self.step_traces.append(StepTrace(
+            step_id=self.verification_rounds,
+            draft_window_size=k,
+            accepted_tokens=accepted,
+            draft_time_ms=draft_time_ms,
+            verify_time_ms=verify_time_ms
+        ))
 
 
 @dataclass
 class Session:
-    first_token_time: float = 0.0
-    token_timestamps: list = field(default_factory=list)
+    iteration_times: list = field(default_factory=list)
     metadata: BenchmarkMetadata = None
     generated_tokens: int = 0
     generated: list = field(default_factory=list)
     output_text: str = ""
-    extra_metrics: dict = field(default_factory=dict)
+    speculative_metrics: SpeculativeMetrics = field(default_factory=SpeculativeMetrics)
+    first_burst_tokens: int = 0
 
     def record_metadata(self, **kwargs):
         """
@@ -46,52 +143,52 @@ class Session:
         """
         self.metadata = BenchmarkMetadata(**kwargs)
 
-    def start(self):
-        self.token_timestamps = [time.perf_counter()]
-    
-    def record(self, tokens: list):
-        current_time = time.perf_counter()
-        if len(self.token_timestamps) == 1:
-            self.first_token_time = current_time - self.token_timestamps[0]
-        self.token_timestamps.append(current_time)
+    def record(self, tokens: list, iteration_time: float):
+        self.iteration_times.append(iteration_time)
         self.generated_tokens += len(tokens)
+        if not self.generated:
+            self.first_burst_tokens = len(tokens)
         self.generated.extend(tokens)
+
+    def record_speculative(self, proposed: list, accepted: int, k: int, draft_time_ms: float, verify_time_ms: float):
+        self.speculative_metrics.update(proposed, accepted, k, draft_time_ms, verify_time_ms)
 
     def record_output(self, output_text: str):
         self.output_text = output_text
 
-    def record_extra(self, **kwargs):
-        self.extra_metrics.update(kwargs)
+    @property
+    def total_elapsed(self):
+        return sum(self.iteration_times)
 
-    def summarize(self):
-        total_elapsed = self.token_timestamps[-1] - self.token_timestamps[0] if self.token_timestamps else 0.0
-        tokens_per_sec = self.generated_tokens / total_elapsed if total_elapsed > 0 else 0.0
-        tpot_sec = (total_elapsed - self.first_token_time) / self.generated_tokens if self.generated_tokens > 0 else 0.0
-        summary = {
-            "timestamp": self.metadata.timestamp,
-            "target_model": self.metadata.target_model,
-            "draft_model": self.metadata.draft_model,
-            "method": self.metadata.method,
-            "device": self.metadata.device,
-            "dtype": self.metadata.dtype,
-            "prompt": self.metadata.prompt,
-            "prompt_tokens": self.metadata.prompt_tokens,
-            "generated_tokens": self.generated_tokens,
-            "max_new_tokens": self.metadata.max_new_tokens,
-            "ttft_sec": self.first_token_time,
-            "tpot_sec": tpot_sec,
-            "total_elapsed_sec": total_elapsed,
-            "tokens_per_sec": tokens_per_sec,
-            "output_text": self.output_text,
-        }
-        summary.update(self.extra_metrics)
-        return summary
+    @property
+    def tokens_per_sec(self):
+        return self.generated_tokens / self.total_elapsed if self.total_elapsed > 0 else 0.0
     
-    def write_summary(self, filepath):
-        summary = self.summarize()
+    @property
+    def time_per_output_token(self):
+        decode_tokens = self.generated_tokens - self.first_burst_tokens
+        if decode_tokens <= 0:
+            return 0.0
+        return (self.total_elapsed - self.time_to_first_token) / decode_tokens
+    
+    @property
+    def time_to_first_token(self):
+        return self.iteration_times[0] if self.iteration_times else 0.0
+    
+    def to_dict(self):
+        data = asdict(self)
+        data['speculative_metrics'] = self.speculative_metrics.to_dict()
+        data['total_elapsed'] = self.total_elapsed
+        data['time_per_output_token'] = self.time_per_output_token
+        data['tokens_per_sec'] = self.tokens_per_sec
+        data['time_to_first_token'] = self.time_to_first_token
+        return data
+    
+    def write(self, filepath):
+        summary = self.to_dict()
         os.makedirs(OUTPUT_DIR, exist_ok=True)
-        with open(os.path.join(OUTPUT_DIR, filepath), 'w') as f:
-            json.dump(summary, f, indent=2)
-
-        print("Saved to:", os.path.join(OUTPUT_DIR, filepath))
+        full_path = os.path.join(OUTPUT_DIR, filepath)
+        with open(full_path, 'a') as f:
+            f.write(json.dumps(summary) + "\n")
+        print("Saved to:", full_path)
 

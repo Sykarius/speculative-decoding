@@ -1,0 +1,70 @@
+\documentclass[11pt]{article}
+
+\usepackage[left=0.8in,right=0.8in,top=0.9in,bottom=0.9in]{geometry}
+\usepackage{amsmath}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{microtype}
+\usepackage[backend=biber, style=numeric]{biblatex}
+
+
+\linespread{0.97}
+
+\setlength{\parindent}{15pt}
+\setlength{\parskip}{4pt}
+
+\hypersetup{
+    colorlinks=true,
+    urlcolor=blue
+}
+
+\addbibresource{../references.bib}
+
+\setlist[itemize]{leftmargin=*, itemsep=1pt, topsep=2pt}
+\begin{document}
+
+\begin{center}
+{\Large \textbf{Orchestrating Efficient LLM Inference via Structural and Adaptive
+Speculative Decoding}}\\[7pt]
+COMPSCI 690AB - Systems for Deep Learning\\[4pt]
+Harish Srinivasan (hsrinivasan@umass.edu), Pooja Rajeev (prajeev@umass.edu) \\
+\noindent\textbf{Repository:} \href{https://github.com/Sykarius/speculative-decoding}{GitHub - speculative-decoding}
+\end{center}
+
+
+\noindent\textbf{Current Status:} On Track / Phase 1 Completed (Baseline + Some SD strategies implemented)
+\section{Summary}
+We have successfully moved past the architectural baseline phase and completed the implementation of four primary inference strategies. 
+The project has transitioned from pure development to the optimization and benchmarking phase. 
+Crucially, initial sanity checks confirm that all implemented Speculative Decoding (SD) methods outperform the standard autoregressive baseline, validating the underlying logic of our acceleration framework.
+The implementation including the benchmarking scripts can be found in the project repository: \href{https://github.com/Sykarius/speculative-decoding}{GitHub - speculative-decoding}
+
+\section{Accomplishments}
+\begin{itemize}
+    \item \textbf{Baseline Established:} Completed the reference autoregressive approach to serve
+    as the performance baseline for all SD variations
+    \item \textbf{Core Speculative Logic:} Fully implemented the speculative decoding method
+    \begin{itemize}
+        \item \textbf{Fixed Window:} Implemented with both standard sampling \cite{leviathan2023} and stochastic rejection sampling \cite{leviathan2023}
+        \item \textbf{Adaptive Lookahead:} Implemented a simple AIMD \cite{chiu1989analysis} (Additive Increase / Multiplicative Decrease) controller to adjust lookahead($\gamma$) based on acceptance outcomes
+    \end{itemize}
+    \item \textbf{Benchmarking Infrastructure:} Implemented a comprehensive benchmarking script to capture telemetry and log performance metrics to the disk. Currently it captures TTFT, TPOT, throughput (tokens/sec), acceptance rate ($\alpha$) and efficiency of the drafting
+\end{itemize}
+
+\section{Upcoming Milestones}
+\begin{itemize}
+    \item \textbf{Adaptive Strategies:} We will expand the adaptive strategies to include Entropy-based and Top-K adaptive windowing. (mentioned in AdaSD \cite{lu2025adasdadaptivespeculativedecoding})
+    \item \textbf{Architectural Optimization:} Developing Block Verification \cite{sun2025blockverificationacceleratesspeculative} and Tree-Based Speculation \cite{Miao_2024} to handle multiple candidate sequences simultaneously
+    \item \textbf{Large-Scale Validation:} Transitioning from sanity checks to a full-dataset benchmark and to generate final performance metrics. Perform the validation with different parameter ($\gamma$) values
+    \begin{itemize}
+        \item \textbf{Draft Model Sweep:} We run validation with different lookahead ($\gamma$) values to thoroughly understand the effects of draft size.
+        \item \textbf{Comparative Study:} Compare the different SD algorithms across various metrics to gain a comprehensive understanding of their performance
+    \end{itemize}
+    \item \textbf{Final Analysis:} Organize and analyze the benchmark result and derive key performance insights
+\end{itemize}
+
+\nocite{*}
+
+\printbibliography
+\enlargethispage{1\baselineskip}
+\end{document}

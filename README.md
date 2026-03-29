@@ -24,9 +24,25 @@ HF_TOKEN=hf_your_token_here
 
 ### Download
 
+#### Model
+
 ```sh
 python scripts/download.py --model <model_id> [OPTIONS]
 ```
+
+#### Dataset
+```sh
+python scripts/download.py --dataset <dataset_path> [OPTIONS]
+```
+
+| Argument | Type | Required | Default | Description |
+| :--- | :--- | :--- | :--- | :--- |
+| `--model` | `str` | No | `None` | The Hugging Face Hub model ID to download (e.g., 'distilgpt2'). |
+| `--dataset` | `str` | No| `None` | The Hugging Face Hub dataset to download for benchmarking |
+| `--revision` | `str` | No | `None` | The specific revision of the model/dataset to download (e.g., a branch name, tag, or commit hash). Default is 'main'. |
+| `--path` | `str` | No | `None` | The local path to save the downloaded files in. |
+
+**Note: Either `--model` or `--dataset` must be passed**
 
 ### Examples
 
@@ -47,8 +63,9 @@ python scripts/download.py --model openai-community/gpt2 --revision v1.1
 Useful for keeping model weights within a specific project folder (e.g., for containerization or offline use):
 
 ```sh
-python scripts/download.py --model distilgpt2 --local_dir ./models/
+python scripts/download.py --model distilgpt2 --path ./models/
 ```
+
 
 ## Running the speculative decoding benchmark
 

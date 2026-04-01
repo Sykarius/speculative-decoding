@@ -5,6 +5,7 @@ description = "Speculative Decoding Research"
 readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
+    "datasets>=4.8.4",
     "huggingface-hub>=1.7.2",
     "python-dotenv>=1.2.2",
     "torch>=2.10.0",

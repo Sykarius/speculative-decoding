@@ -60,3 +60,14 @@ uv run python scripts/export_runs_csv.py
 ```
 
 Default output: `results/processed/runs.csv` (gitignored — regenerate anytime).
+
+## Draft sweep (multiple drafts, one target)
+
+```sh
+uv run python scripts/run_draft_sweep.py \
+  --target openai-community/gpt2 \
+  --drafts distilgpt2 openai-community/gpt2 \
+  --device cpu
+```
+
+Uses `prompts/smoke.txt` by default. Filter `runs.csv` by `draft_model` to compare acceptance and throughput across drafts.

@@ -172,3 +172,16 @@ uv run python scripts/export_runs_csv.py
 ```
 
 JSONL remains the source of truth; CSV is regenerated on demand (see [docs/BENCHMARKING.md](docs/BENCHMARKING.md)).
+
+## Draft model sweep
+
+One **target**, several **draft** models, same prompts. Per prompt: optional **baseline**, then **`speculative_greedy`** for each draft (typical: larger target, smaller drafts — e.g. GPT-2 target with `distilgpt2` + `gpt2` drafts).
+
+```sh
+uv run python scripts/run_draft_sweep.py \
+  --target openai-community/gpt2 \
+  --drafts distilgpt2 openai-community/gpt2 \
+  --device cpu
+```
+
+Use `--no-baseline` if you already captured baseline lines. Then `uv run python scripts/export_runs_csv.py` for a combined table.

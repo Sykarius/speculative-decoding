@@ -21,7 +21,8 @@
 
 ## Experiments + evaluation
 
-- [ ] **Draft model sweep** — multiple draft sizes vs one target; table acceptance + speed + memory.
+- [x] **Draft sweep runner** — `scripts/run_draft_sweep.py` (one target, N drafts, same prompts; JSONL).
+- [ ] **Draft sweep results** — run on chosen hardware, `export_runs_csv.py`, table + short analysis in final report.
 - [x] **Smoke prompt suite** — `prompts/smoke.txt` + `scripts/run_smoke_suite.py` (loops `benchmark.py`; appends JSONL).
 - [x] **Benchmarking notes** — `docs/BENCHMARKING.md`, `.env.example` (smoke vs proposed Llama pair; `BENCHMARK_*` env defaults).
 - [ ] **Experiment harness (full)** — SPEED-Bench subsets, repeated trials, seeds, reproducible batches.

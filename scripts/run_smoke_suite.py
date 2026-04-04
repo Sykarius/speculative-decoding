@@ -6,14 +6,19 @@ same JSONL files as a manual run (e.g. results/raw/baseline.jsonl).
 
 Usage (from repo root):
   uv run python scripts/run_smoke_suite.py --target distilgpt2 --draft distilgpt2
+
+Or set BENCHMARK_TARGET / BENCHMARK_DRAFT in `.env` (see `.env.example`) and omit those flags.
 """
 
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
+
+from dotenv import load_dotenv
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
@@ -63,11 +68,26 @@ def main() -> None:
         default=REPO_ROOT / "prompts" / "smoke.txt",
         help="Path to newline-delimited prompts (# and empty lines skipped).",
     )
-    parser.add_argument("--target", type=str, required=True)
-    parser.add_argument("--draft", type=str, default=None, help="Required for speculative methods.")
+    parser.add_argument(
+        "--target",
+        type=str,
+        default=None,
+        help="Target model id (or set BENCHMARK_TARGET in .env).",
+    )
+    parser.add_argument(
+        "--draft",
+        type=str,
+        default=None,
+        help="Draft model id for speculative methods (or BENCHMARK_DRAFT in .env).",
+    )
     parser.add_argument("--max-new-tokens", type=int, default=32)
     parser.add_argument("--gamma", type=int, default=4)
-    parser.add_argument("--device", type=str, default="cpu")
+    parser.add_argument(
+        "--device",
+        type=str,
+        default=None,
+        help="cpu | cuda | mps (or BENCHMARK_DEVICE in .env; default cpu).",
+    )
     parser.add_argument(
         "--methods",
         nargs="+",
@@ -83,7 +103,19 @@ def main() -> None:
         action="store_true",
         help="Print commands without running.",
     )
+    load_dotenv(REPO_ROOT / ".env")
     args = parser.parse_args()
+
+    target = args.target or os.environ.get("BENCHMARK_TARGET")
+    draft = args.draft if args.draft is not None else os.environ.get("BENCHMARK_DRAFT")
+    device = args.device or os.environ.get("BENCHMARK_DEVICE") or "cpu"
+
+    if not target:
+        print(
+            "Missing target model: pass --target or set BENCHMARK_TARGET in .env (see .env.example).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     prompts_path = args.prompts_file
     if not prompts_path.is_file():
@@ -96,8 +128,11 @@ def main() -> None:
         sys.exit(1)
 
     for method in args.methods:
-        if method != "baseline" and not args.draft:
-            print(f"--draft is required for method {method}", file=sys.stderr)
+        if method != "baseline" and not draft:
+            print(
+                f"--draft or BENCHMARK_DRAFT is required for method {method}",
+                file=sys.stderr,
+            )
             sys.exit(1)
 
     gamma_range = (args.gamma_range[0], args.gamma_range[1])
@@ -106,12 +141,12 @@ def main() -> None:
         for method in args.methods:
             cmd = build_cmd(
                 method=method,
-                target=args.target,
-                draft=args.draft,
+                target=target,
+                draft=draft,
                 prompt=prompt,
                 max_new_tokens=args.max_new_tokens,
                 gamma=args.gamma,
-                device=args.device,
+                device=device,
                 temperature=args.temperature,
                 adaptive=args.adaptive,
                 gamma_range=gamma_range,

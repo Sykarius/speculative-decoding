@@ -12,6 +12,8 @@ pip install uv
 uv sync
 ```
 
+Copy `.env.example` to `.env` when you use Hugging Face tokens or default benchmark model IDs (see [docs/BENCHMARKING.md](docs/BENCHMARKING.md)).
+
 ## Downloading Models
 
 ### Authentication
@@ -158,3 +160,5 @@ uv run python scripts/run_smoke_suite.py \
 ```
 
 Optional: `--methods baseline speculative_greedy speculative`, `--prompts-file path/to/prompts.txt`, `--dry-run` to print commands only.
+
+Model IDs can come from **`BENCHMARK_TARGET` / `BENCHMARK_DRAFT`** in `.env` instead of `--target` / `--draft` (see `.env.example` and [docs/BENCHMARKING.md](docs/BENCHMARKING.md)).

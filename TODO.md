@@ -23,6 +23,7 @@
 
 - [ ] **Draft model sweep** — multiple draft sizes vs one target; table acceptance + speed + memory.
 - [x] **Smoke prompt suite** — `prompts/smoke.txt` + `scripts/run_smoke_suite.py` (loops `benchmark.py`; appends JSONL).
+- [x] **Benchmarking notes** — `docs/BENCHMARKING.md`, `.env.example` (smoke vs proposed Llama pair; `BENCHMARK_*` env defaults).
 - [ ] **Experiment harness (full)** — SPEED-Bench subsets, repeated trials, seeds, reproducible batches.
 - [ ] **Results aggregation** — CSV (and optional plots) from JSONL for milestone / final tables.
 - [ ] **Final evaluation writeup** — integrated tables, takeaways, bottlenecks, blockers.

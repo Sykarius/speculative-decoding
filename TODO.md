@@ -1,17 +1,27 @@
 # Project TODO (Shared)
 
+## Done (merged on `master`)
 
+- [x] **Baseline greedy decoding** — `scripts/baseline.py`, TTFT / TPOT / throughput, JSONL logs under `results/raw/`.
+- [x] **Benchmark entrypoint** — `scripts/benchmark.py` with `ModelPair` / `BenchmarkConfig` (`common.py`, `config.py`).
+- [x] **Fixed lookahead speculative (greedy verify)** — `--method speculative_greedy`, `--gamma`, `--draft`.
+- [x] **Stochastic speculative** — `--method speculative`, `--temperature`, draft + target distributions.
+- [x] **Adaptive lookahead (AIMD on γ)** — `--adaptive aimd`, `--gamma_range`; increases / shrinks γ from acceptance feedback.
+- [x] **Metrics & traces** — per-step draft vs verify timing, acceptance aggregates, JSONL append.
+- [x] **Model download** — `scripts/download.py --model …` (HF Hub).
+- [x] **Benchmark dataset download** — `scripts/download.py --dataset …` (`nvidia/SPEED-Bench` via `datasets`).
+- [x] **Milestone report draft** — `reports/milestone/report.tex`, `reports/references.bib`.
+- [x] **Shared TODO file** — this document (keep it updated).
 
 ## Next implementations
 
-- [ ] **Adaptive lookahead (AdaSD-inspired)**: dynamically choose `k` during speculative decoding (entropy/confidence/acceptance-based controller).
-- [ ] **Block verification**: reduce overhead vs naive verification; compare latency/throughput.
-- [ ] **Tree-lite speculation (SpecInfer-lite)**: shallow tree / small branching draft strategy + verification.
+- [ ] **Block verification** — compare naive vs batched / block-style verification; measure verify latency and overhead.
+- [ ] **Tree-lite (SpecInfer-inspired)** — shallow tree / small branching draft + verification.
+- [ ] **Optional: richer adaptive control** — e.g. entropy- or confidence-based γ (beyond AIMD), if time permits.
 
 ## Experiments + evaluation
 
-- [ ] **Draft model sweep**: compare multiple draft sizes (e.g., `distilgpt2`, `gpt2`) vs a target; report acceptance + speed tradeoffs.
-- [ ] **Experiment harness**: consistent prompt set(s), repeated trials, standardized output schema.
-- [ ] **Results aggregation**: write a CSV summary table for baseline vs fixed-k vs future methods; (optional) plots.
-- [ ] **Writeup**: final evaluation summary (tables + takeaways + bottlenecks + blockers).
-
+- [ ] **Draft model sweep** — multiple draft sizes vs one target; table acceptance + speed + memory.
+- [ ] **Experiment harness** — fixed prompt set (or SPEED-Bench subsets), repeated trials, reproducible CLI / scripts.
+- [ ] **Results aggregation** — CSV (and optional plots) from JSONL for milestone / final tables.
+- [ ] **Final evaluation writeup** — integrated tables, takeaways, bottlenecks, blockers.

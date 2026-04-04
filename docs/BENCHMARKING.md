@@ -50,3 +50,13 @@ uv run python scripts/run_smoke_suite.py --target distilgpt2 --draft distilgpt2 
 ## Datasets
 
 Benchmark text can come from `prompts/smoke.txt` or from Hugging Face datasets (see `scripts/download.py --dataset ...` and `nvidia/SPEED-Bench`). Wiring SPEED-Bench prompts into the runner is a follow-up (“full experiment harness”).
+
+## CSV export (optional)
+
+JSONL remains the canonical log. To build tables for slides or sheets, flatten all `results/raw/*.jsonl` into one CSV:
+
+```sh
+uv run python scripts/export_runs_csv.py
+```
+
+Default output: `results/processed/runs.csv` (gitignored — regenerate anytime).

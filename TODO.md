@@ -22,6 +22,7 @@
 ## Experiments + evaluation
 
 - [ ] **Draft model sweep** — multiple draft sizes vs one target; table acceptance + speed + memory.
-- [ ] **Experiment harness** — fixed prompt set (or SPEED-Bench subsets), repeated trials, reproducible CLI / scripts.
+- [x] **Smoke prompt suite** — `prompts/smoke.txt` + `scripts/run_smoke_suite.py` (loops `benchmark.py`; appends JSONL).
+- [ ] **Experiment harness (full)** — SPEED-Bench subsets, repeated trials, seeds, reproducible batches.
 - [ ] **Results aggregation** — CSV (and optional plots) from JSONL for milestone / final tables.
 - [ ] **Final evaluation writeup** — integrated tables, takeaways, bottlenecks, blockers.

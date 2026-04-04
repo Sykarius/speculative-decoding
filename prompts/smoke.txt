@@ -1,0 +1,7 @@
+# Short prompts for local smoke runs (one prompt per line; lines starting with # are ignored).
+The future of artificial intelligence is
+Speculative decoding helps inference by
+Write a one-sentence summary of zero trust networking.
+Explain the difference between latency and throughput in three sentences.
+What is speculative decoding in the context of large language models?
+List three challenges in deploying LLMs in production.

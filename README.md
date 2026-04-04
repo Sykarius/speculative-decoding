@@ -162,3 +162,13 @@ uv run python scripts/run_smoke_suite.py \
 Optional: `--methods baseline speculative_greedy speculative`, `--prompts-file path/to/prompts.txt`, `--dry-run` to print commands only.
 
 Model IDs can come from **`BENCHMARK_TARGET` / `BENCHMARK_DRAFT`** in `.env` instead of `--target` / `--draft` (see `.env.example` and [docs/BENCHMARKING.md](docs/BENCHMARKING.md)).
+
+## Export JSONL → CSV (optional)
+
+For spreadsheet / report tables, flatten all `results/raw/*.jsonl` into `results/processed/runs.csv`:
+
+```sh
+uv run python scripts/export_runs_csv.py
+```
+
+JSONL remains the source of truth; CSV is regenerated on demand (see [docs/BENCHMARKING.md](docs/BENCHMARKING.md)).

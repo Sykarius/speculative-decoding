@@ -25,5 +25,6 @@
 - [x] **Smoke prompt suite** — `prompts/smoke.txt` + `scripts/run_smoke_suite.py` (loops `benchmark.py`; appends JSONL).
 - [x] **Benchmarking notes** — `docs/BENCHMARKING.md`, `.env.example` (smoke vs proposed Llama pair; `BENCHMARK_*` env defaults).
 - [ ] **Experiment harness (full)** — SPEED-Bench subsets, repeated trials, seeds, reproducible batches.
-- [ ] **Results aggregation** — CSV (and optional plots) from JSONL for milestone / final tables.
+- [x] **Results aggregation (CSV export)** — `scripts/export_runs_csv.py` flattens `results/raw/*.jsonl` → `results/processed/runs.csv` (optional; JSONL stays canonical).
+- [ ] **Plots / final tables** — import CSV into report; optional matplotlib later.
 - [ ] **Final evaluation writeup** — integrated tables, takeaways, bottlenecks, blockers.

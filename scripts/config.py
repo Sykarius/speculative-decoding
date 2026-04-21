@@ -1,23 +1,102 @@
-from typing import Tuple
-from transformers import PreTrainedModel, PreTrainedTokenizer
-from dataclasses import dataclass
+from transformers import PreTrainedModel, PreTrainedTokenizer, AutoTokenizer, AutoModelForCausalLM
+from pydantic import BaseModel, ConfigDict, Field, model_validator, SkipValidation
+from typing import Literal, Self, Optional, Any
 
-@dataclass(frozen=True)
-class ModelPair:
+DeviceType = Literal["cpu", "cuda", "mps"]
+MethodType = Literal["baseline", "speculative_greedy", "speculative"]
+AdaptiveType = Literal["aimd"]
 
-    target: PreTrainedModel
+
+class ModelPair(BaseModel):
+
+    model_config = ConfigDict(frozen=True, arbitrary_types_allowed=True)
+
+    tokenizer: SkipValidation[PreTrainedTokenizer]
+    target: SkipValidation[PreTrainedModel]
     target_name: str
-    draft: PreTrainedModel | None
-    draft_name: str | None
-    tokenizer: PreTrainedTokenizer
+    draft: Optional[SkipValidation[PreTrainedModel]] = None
+    draft_name: Optional[str] = None
 
-@dataclass(frozen=True)
-class BenchmarkConfig:
-    prompt: str
-    max_new_tokens: int
-    gamma: int | None
-    device: str
-    method: str
-    temperature: float | None = None
-    apdaptive: str | None = None
-    gamma_range: Tuple[int, int] | None = None
+    @model_validator(mode="before")
+    @classmethod
+    def load_models(cls, data: dict) -> dict:
+        if not isinstance(data, dict):
+            return data
+        
+        data_dict = data.copy()
+        
+        if "target" not in data_dict:
+            raise ValueError(f"Model config must contain 'target' key with the name of the target model to load. Got keys: {list(data_dict.keys())}")
+    
+        if "tokenizer" not in data_dict or isinstance(data_dict["tokenizer"], str):
+            token_path = data_dict.get("tokenizer") or data_dict["target"]
+            data_dict["tokenizer"] = AutoTokenizer.from_pretrained(token_path, local_files_only=True)
+        
+        if isinstance(data_dict.get("target"), str):
+            print(f"Loading target: {data_dict['target']}...")
+            data_dict["target_name"] = data_dict["target"]
+            data_dict["target"] = AutoModelForCausalLM.from_pretrained(data_dict["target"], local_files_only=True)
+        
+        if data_dict.get("draft") and isinstance(data_dict["draft"], str):
+            print(f"Loading draft: {data_dict['draft']}...")
+            data_dict["draft_name"] = data_dict["draft"]
+            data_dict["draft"] = AutoModelForCausalLM.from_pretrained(data_dict["draft"], local_files_only=True)
+
+        return data_dict
+
+
+class AdaptiveConfig(BaseModel):
+
+    model_config = {"frozen": True}
+
+    name: str
+    gamma_min: int
+    gamma_max: int
+
+    @model_validator(mode="after")
+    def gamma_range(self) -> Self:
+        if self.gamma_min >= self.gamma_max:
+            raise ValueError(f"--gamma_range is not valid")
+
+        return self
+
+class BenchmarkConfig(BaseModel):
+
+    model_config = {"frozen": True}
+    
+    method: MethodType
+    output: str = Field(default="output", pattern=r"^.*\.jsonl$")
+    max_new_tokens: int = Field(default=32, gt=0)
+    gamma: Optional[int] = Field(default=None, gt=0)
+    device: DeviceType = Field(default="cpu")
+    temperature: float = Field(default=1.0, gt=0.0)
+    adaptive: Optional[AdaptiveConfig] = None
+
+    @model_validator(mode="after")
+    def check_speculative_requirements(self) -> Self:
+        if self.method in ("speculative_greedy", "speculative"):
+            if self.gamma is None:
+                raise ValueError(f"--gamma is required for method '{self.method}'")
+        
+        return self
+    
+
+class InputConfig(BaseModel):
+    prompt: Optional[str] = None
+    data: Optional[str] = None
+
+    @model_validator(mode="after")
+    def check_prompt_or_data(self) -> Self:
+        if not self.prompt and not self.data:
+            raise ValueError(f"Either --prompt or --data must be provided.")
+        if self.prompt and self.data:
+            raise ValueError(f"Only one of --prompt or --data can be provided, not both.")
+        return self
+
+class ModelInput(BaseModel):
+    prompt: str = Field(min_length=1)
+    category: str | None = None
+    sub_category: str | None = None
+    question_id: str | None = None
+    multiturn: bool | None = None
+    difficulty: str | None = None

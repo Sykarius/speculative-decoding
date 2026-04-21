@@ -32,8 +32,7 @@ def draft_tokens(draft_model, input_ids, step_k, device):
     return proposed, verify_ids, draft_logits
 
 def generate_output(session, inputs, tokenizer, device):
-    full_list = inputs["input_ids"][0].tolist() + session.generated
-    full_ids = torch.tensor([full_list], device=device)
+    full_ids = torch.tensor([session.generated], device=device)
         
     output_text = tokenizer.decode(full_ids[0], skip_special_tokens=True)
     session.record_output(output_text)

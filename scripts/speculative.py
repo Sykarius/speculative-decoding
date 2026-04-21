@@ -1,7 +1,8 @@
 import torch
 from metrics import DeviceTime, Session, profile
 from common import generate_output, tokenize, draft_tokens
-from config import ModelPair, BenchmarkConfig
+from config import ModelInput, ModelPair, BenchmarkConfig
+from adaptive import Adaptive
 
 
 @profile
@@ -55,43 +56,31 @@ def verify_tokens_stochastic(target, verify_ids, draft_logits, proposed, base_id
     return accepted, next_token
     
 
-def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig):
+def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: ModelInput) -> str:
 
     draft = model_pair.draft
     target = model_pair.target
     tokenizer = model_pair.tokenizer
     gamma = benchmark_config.gamma
-    prompt = benchmark_config.prompt
     max_new_tokens = benchmark_config.max_new_tokens
     device = benchmark_config.device
     temperature = benchmark_config.temperature
-    adaptive = benchmark_config.apdaptive
-    gamma_range = benchmark_config.gamma_range
+    adaptive = Adaptive(gamma, benchmark_config.adaptive)
 
     if not draft:
         raise ValueError("speculative_greedy/speculative requires --draft <model_name>.")
-    if gamma is None or gamma <= 0:
-        raise ValueError("--gamma must be a positive integer for speculative_greedy/speculative")
-    if benchmark_config.method == "speculative" and (temperature is None or temperature <= 0.0):
-        raise ValueError("--temperature must be a positive float for speculative method")
 
-    prompt_inputs = tokenize(tokenizer, prompt, device)
+    prompt_inputs = tokenize(tokenizer, model_input.prompt, device)
     prompt_ids = prompt_inputs["input_ids"]
 
     session = Session()
     session.record_metadata(
-        target_model=model_pair.target_name,
-        draft_model=model_pair.draft_name,
-        method=benchmark_config.method,
-        device=device,
-        dtype=str(next(target.parameters()).dtype),
-        prompt=prompt,
-        prompt_tokens=int(prompt_ids.shape[1]),
-        max_new_tokens=max_new_tokens,
-        gamma = gamma,
-        gamma_range=gamma_range,
-        temperature=temperature,
-        adaptive=adaptive
+        config=benchmark_config,
+        model_input=model_input,
+        target_model = model_pair.target_name,
+        draft_model = model_pair.draft_name,
+        prompt_tokens = int(prompt_ids.shape[1]),
+        dtype = str(next(target.parameters()).dtype),
     )
 
     accepted = 0
@@ -125,14 +114,8 @@ def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig):
             
             session.record(to_emit, dt.elapsed_time)
 
-            if adaptive == 'aimd':
-                if accepted == gamma:
-                    gamma = min(gamma + 1, gamma_range[1])
-                else:
-                    gamma = max(gamma // 2, gamma_range[0])
+            gamma = adaptive.update_gamma(accepted)
 
-    generate_output(session, prompt_inputs, tokenizer, device)
-    if adaptive:
-        session.write(f"{benchmark_config.method}_adaptive_{adaptive}.jsonl")
-    else:
-        session.write(f"{benchmark_config.method}_fixed.jsonl")
+    output_txt = generate_output(session, prompt_inputs, tokenizer, device)
+    session.write(benchmark_config.output)    
+    return output_txt

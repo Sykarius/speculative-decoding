@@ -1,28 +1,25 @@
 import torch
 from metrics import Session, DeviceTime
 from common import tokenize, generate_output
-from config import ModelPair, BenchmarkConfig
+from config import ModelInput, ModelPair, BenchmarkConfig
 
 
-def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig):
+def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: ModelInput) -> str:
 
     target = model_pair.target
     tokenizer = model_pair.tokenizer
-    prompt = benchmark_config.prompt
     max_new_tokens = benchmark_config.max_new_tokens
     device = benchmark_config.device
-    inputs = tokenize(tokenizer, prompt, device)
+    inputs = tokenize(tokenizer, model_input.prompt, device)
     session = Session()
 
     session.record_metadata(
+        config=benchmark_config,
+        model_input=model_input,
         target_model = model_pair.target_name,
         draft_model = model_pair.draft_name,
-        method = benchmark_config.method,
-        device = device,
         dtype = str(next(target.parameters()).dtype),
-        prompt = prompt,
         prompt_tokens = int(inputs["input_ids"].shape[1]),
-        max_new_tokens = max_new_tokens
     )
 
     with torch.no_grad():
@@ -36,8 +33,10 @@ def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig):
             session.record([next_token.item()], dt.elapsed_time)
             inputs = {"input_ids": next_token, "past_key_values": past_key_values}
 
-        generate_output(session, inputs, tokenizer, device)
-    session.write("baseline.jsonl")
+        output_txt = generate_output(session, inputs, tokenizer, device)
+    session.write(benchmark_config.output)
+
+    return output_txt
 
 
 if __name__ == "__main__":

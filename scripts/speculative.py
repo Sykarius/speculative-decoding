@@ -1,4 +1,5 @@
 import torch
+from transformers import DynamicCache
 from metrics import DeviceTime, Session, profile
 from common import generate_output, greedy_token, tokenize
 from config import ModelInput, ModelPair, BenchmarkConfig
@@ -10,6 +11,7 @@ def draft_tokens(
     input_ids, 
     gamma, 
     device,
+    past_key_values,
     method = "speculative_greedy",
     temperature = 1.0,
     adaptive_controller: AdaptiveController | None = None
@@ -20,7 +22,7 @@ def draft_tokens(
     early_exit_time_ms = 0.0
 
     for _ in range(gamma):
-        draft_outputs = draft_model(input_ids=draft_ids)
+        draft_outputs = draft_model(input_ids=draft_ids, past_key_values=past_key_values, use_cache=True)
         logits = draft_outputs.logits
         next_token_logits = logits[:, -1, :]
         draft_logits.append(next_token_logits)
@@ -54,8 +56,8 @@ def draft_tokens(
 
 
 @profile
-def verify_tokens(target, verify_ids, proposed, base_idx, device):
-    target_outputs = target(input_ids=verify_ids)
+def verify_tokens(target, verify_ids, proposed, base_idx, past_key_values, device):
+    target_outputs = target(input_ids=verify_ids, past_key_values=past_key_values, use_cache=True)
     target_logits = target_outputs.logits
     accepted = 0
     next_token = None
@@ -72,8 +74,8 @@ def verify_tokens(target, verify_ids, proposed, base_idx, device):
     return accepted, next_token, target_logits_slice
 
 @profile
-def verify_tokens_stochastic(target, verify_ids, draft_logits, proposed, base_idx, temperature, device):
-    target_outputs = target(input_ids=verify_ids)
+def verify_tokens_stochastic(target, verify_ids, draft_logits, proposed, base_idx, temperature, past_key_values, device):
+    target_outputs = target(input_ids=verify_ids, past_key_values=past_key_values, use_cache=True)
     target_logits = target_outputs.logits
     accepted = 0
     next_token = None
@@ -136,6 +138,9 @@ def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: M
         dtype = str(next(target.parameters()).dtype),
     )
 
+    target_cache = DynamicCache()
+    draft_cache = DynamicCache()
+
     accepted = 0
 
     with torch.no_grad():
@@ -151,11 +156,17 @@ def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: M
                     )
 
                 # Draft tokens
-                (proposed, verify_ids, draft_logits, early_stop_time_ms), draft_time_ms = draft_tokens(
+                (
+                    proposed,
+                    verify_ids,
+                    draft_logits,
+                    early_stop_time_ms,
+                ), draft_time_ms = draft_tokens(
                     draft,
                     current_ids,
                     step_k,
                     device,
+                    past_key_values=draft_cache,
                     method=benchmark_config.method,
                     temperature=temperature,
                     adaptive_controller=adaptive,
@@ -164,9 +175,24 @@ def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: M
                 # Verify tokens
                 base_idx = current_ids.shape[1] - 1
                 if benchmark_config.method == "speculative_greedy":
-                    (accepted, next_token, target_logits), verify_time_ms = verify_tokens(target, verify_ids, proposed, base_idx, device)
+                    (accepted, next_token, target_logits), verify_time_ms = (
+                        verify_tokens(
+                            target, verify_ids, proposed, base_idx, target_cache, device
+                        )
+                    )
                 else:
-                    (accepted, next_token, target_logits), verify_time_ms = verify_tokens_stochastic(target, verify_ids, draft_logits, proposed, base_idx, temperature, device)
+                    (accepted, next_token, target_logits), verify_time_ms = (
+                        verify_tokens_stochastic(
+                            target,
+                            verify_ids,
+                            draft_logits,
+                            proposed,
+                            base_idx,
+                            temperature,
+                            target_cache,
+                            device,
+                        )
+                    )
 
                 to_emit = proposed[:accepted]
                 to_emit.append(next_token)

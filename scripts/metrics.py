@@ -52,15 +52,18 @@ def profile(func: Callable) -> Callable:
 
 
 class BenchmarkMetadata(BenchmarkConfig, ModelInput):
-    target_model: str
-    draft_model: str | None
     dtype: str
     prompt_tokens: int
     timestamp: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
 
     @classmethod
     def from_config(cls, config: BenchmarkConfig, model_input: ModelInput, **metadata_kwargs):
-        return cls(**vars(config), **vars(model_input), **metadata_kwargs)
+        merged_data = {
+            **config.model_dump(),
+            **model_input.model_dump(),
+            **metadata_kwargs
+        }
+        return cls(**merged_data)
 
 class StepTrace(BaseModel):
     step_id: int
@@ -69,6 +72,7 @@ class StepTrace(BaseModel):
     accepted_tokens: int
     draft_time_ms: float
     verify_time_ms: float
+    early_stop_time_ms: float
 
     @computed_field(return_type=float)
     @property

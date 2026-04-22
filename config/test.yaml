@@ -1,11 +1,8 @@
-models:
-  target: distilgpt2
-  draft: distilgpt2
-config:
-  method: speculative
-  gamma: 4
-  max_new_tokens: 32
-  device: cpu
-  output: "test_output.jsonl"
-data: "qualitative/0.0.0/7d7d50bc57690cc2343a6f66ee073271cd27e3c4/speed-bench-test.arrow"
-# prompt: "The future of AI"
+method: speculative
+target_model: distilgpt2
+draft_model: distilgpt2
+gamma: 4
+max_new_tokens: 32
+device: cpu
+output: "test_output.jsonl"
+prompt: "The future of AI is"

@@ -17,33 +17,6 @@ class ModelPair(BaseModel):
     draft: Optional[SkipValidation[PreTrainedModel]] = None
     draft_name: Optional[str] = None
 
-    @model_validator(mode="before")
-    @classmethod
-    def load_models(cls, data: dict) -> dict:
-        if not isinstance(data, dict):
-            return data
-        
-        data_dict = data.copy()
-        
-        if "target" not in data_dict:
-            raise ValueError(f"Model config must contain 'target' key with the name of the target model to load. Got keys: {list(data_dict.keys())}")
-    
-        if "tokenizer" not in data_dict or isinstance(data_dict["tokenizer"], str):
-            token_path = data_dict.get("tokenizer") or data_dict["target"]
-            data_dict["tokenizer"] = AutoTokenizer.from_pretrained(token_path, local_files_only=True)
-        
-        if isinstance(data_dict.get("target"), str):
-            print(f"Loading target: {data_dict['target']}...")
-            data_dict["target_name"] = data_dict["target"]
-            data_dict["target"] = AutoModelForCausalLM.from_pretrained(data_dict["target"], local_files_only=True)
-        
-        if data_dict.get("draft") and isinstance(data_dict["draft"], str):
-            print(f"Loading draft: {data_dict['draft']}...")
-            data_dict["draft_name"] = data_dict["draft"]
-            data_dict["draft"] = AutoModelForCausalLM.from_pretrained(data_dict["draft"], local_files_only=True)
-
-        return data_dict
-
 
 class BaseAdaptiveConfig(BaseModel):
 
@@ -90,26 +63,27 @@ class BenchmarkConfig(BaseModel):
     model_config = {"frozen": True}
     
     method: MethodType
+    target_model: str = Field(description="Name of the target model to load (e.g. 'gpt2-large').", min_length=1)
     output: str = Field(default="output", pattern=r"^.*\.jsonl$")
     max_new_tokens: int = Field(default=32, gt=0)
     gamma: Optional[int] = Field(default=None, gt=0)
     device: DeviceType = Field(default="cpu")
     temperature: float = Field(default=1.0, gt=0.0)
     adaptive: Optional[AdaptiveConfig] = None
+    prompt: Optional[str] = None
+    data: Optional[str] = None
+    draft_model: Optional[str] = None
 
     @model_validator(mode="after")
     def check_speculative_requirements(self) -> Self:
         if self.method in ("speculative_greedy", "speculative"):
             if self.gamma is None:
                 raise ValueError(f"--gamma is required for method '{self.method}'")
+            if self.draft_model is None:
+                raise ValueError(f"--draft is required for method '{self.method}'")
         
         return self
     
-
-class InputConfig(BaseModel):
-    prompt: Optional[str] = None
-    data: Optional[str] = None
-
     @model_validator(mode="after")
     def check_prompt_or_data(self) -> Self:
         if not self.prompt and not self.data:

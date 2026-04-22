@@ -8,7 +8,8 @@ from datasets import load_dataset
 
 from baseline import run as run_baseline 
 from speculative import run as run_speculative
-from config import MethodType, ModelInput, ModelPair, BenchmarkConfig, InputConfig
+from config import MethodType, ModelInput, ModelPair, BenchmarkConfig
+from common import load_models
 
 BASE_DATA_PATH = "./data/nvidia___speed-bench/"
 
@@ -18,7 +19,7 @@ def create_parser() -> argparse.ArgumentParser:
 
     return parser
 
-def load_yaml_config(path: str) -> Tuple[ModelPair, BenchmarkConfig, InputConfig]:
+def load_yaml_config(path: str) -> BenchmarkConfig:
     config_path = Path(path).expanduser()
     if not config_path.exists():
         raise FileNotFoundError(f"Config file not found: {config_path}")
@@ -30,16 +31,9 @@ def load_yaml_config(path: str) -> Tuple[ModelPair, BenchmarkConfig, InputConfig
         raise ValueError(f"YAML config is empty: {config_path}")
     if not isinstance(data, dict):
         raise ValueError(f"YAML config must be a mapping/dict at top-level. Got: {type(data).__name__}")
-    if "models" not in data or "config" not in data:
-        raise ValueError(f"YAML config must contain 'models' and 'config' sections. Got keys: {list(data.keys())}")
-    if "prompt" not in data and "data" not in data:
-        raise ValueError(f"YAML config 'config' section must contain either 'prompt' or 'data'. Got keys: {list(data['config'].keys())}")
 
-    model_pair = ModelPair(**data['models'])
-    benchmark_config = BenchmarkConfig(**data['config'])
-    input_config = InputConfig(prompt=data.get('prompt'), data=data.get('data'))
-
-    return model_pair, benchmark_config, input_config
+    benchmark_config = BenchmarkConfig(**data)
+    return benchmark_config
 
 
 def run_benchmark_prompt(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: ModelInput) -> str:
@@ -75,16 +69,24 @@ def run_benchmark_data(model_pair: ModelPair, benchmark_config: BenchmarkConfig,
             output_txt = run_benchmark_prompt(model_pair, benchmark_config, model_input)
             context += "\n" + output_txt + "\n"
 
-def run_benchmark(model_pair: ModelPair, benchmark_config: BenchmarkConfig, input_config: InputConfig):
-    if input_config.prompt:
-        model_input = ModelInput(prompt=input_config.prompt)
+def run_benchmark(benchmark_config: BenchmarkConfig):
+    target_model, draft_model, tokenizer = load_models(benchmark_config)
+    model_pair = ModelPair(
+        tokenizer=tokenizer,
+        target=target_model,
+        target_name=benchmark_config.target_model,
+        draft=draft_model,
+        draft_name=benchmark_config.draft_model
+    )
+    if benchmark_config.prompt:
+        model_input = ModelInput(prompt=benchmark_config.prompt)
         run_benchmark_prompt(model_pair, benchmark_config, model_input)
     else:
-        run_benchmark_data(model_pair, benchmark_config, input_config.data)
+        run_benchmark_data(model_pair, benchmark_config, benchmark_config.data)
 
 
 if __name__ == '__main__':
     parser = create_parser()
     args = parser.parse_args()
-    model_pair, benchmark_config, input_config = load_yaml_config(args.config)
-    run_benchmark(model_pair, benchmark_config, input_config)
+    benchmark_config = load_yaml_config(args.config)
+    run_benchmark(benchmark_config)

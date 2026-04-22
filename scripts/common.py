@@ -1,6 +1,7 @@
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
 from metrics import profile
+from config import BenchmarkConfig
 
 
 def tokenize(tokenizer, prompt: str, device: str):
@@ -39,17 +40,17 @@ def generate_output(session, inputs, tokenizer, device):
     return output_text
 
 
-def load_models(target_model: str, draft_model: str | None, device: str):
-    tokenizer = AutoTokenizer.from_pretrained(target_model, local_files_only=True)
+def load_models(benchmark_config: BenchmarkConfig):
+    tokenizer = AutoTokenizer.from_pretrained(benchmark_config.target_model, local_files_only=True)
     
-    target_model = AutoModelForCausalLM.from_pretrained(target_model, local_files_only=True)
+    target_model = AutoModelForCausalLM.from_pretrained(benchmark_config.target_model, local_files_only=True)
     target_model.eval()
-    target_model.to(device)
+    target_model.to(benchmark_config.device)
 
-    if draft_model:
-        draft_model = AutoModelForCausalLM.from_pretrained(draft_model, local_files_only=True)
+    if benchmark_config.draft_model:
+        draft_model = AutoModelForCausalLM.from_pretrained(benchmark_config.draft_model, local_files_only=True)
         draft_model.eval()
-        draft_model.to(device)
+        draft_model.to(benchmark_config.device)
     else:
         draft_model = None
 

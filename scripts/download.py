@@ -39,7 +39,7 @@ def download_model(model, revision, local_dir, hf_token):
 
 def download_dataset(dataset, revision, local_dir):
     ds = load_dataset(DATASET_PATH, dataset, cache_dir=local_dir, revision=revision)
-    print(f'Completed download of {DATASET_PATH}/{dataset}')
+    print(f'Completed download of {dataset}')
     print(ds.column_names)
     
 

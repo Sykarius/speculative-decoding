@@ -67,7 +67,8 @@ class AdaptiveController:
                 self.gamma = max(new_gamma, self.config.gamma_min)
     
     def jensen_shannon_distance(self, target_logits, draft_logits):
-        target_prob = F.softmax(target_logits, dim=-1)
+        # Remove bonus token from target_slice
+        target_prob = F.softmax(target_logits[:, :-1, :], dim=-1)
         draft_prob = F.softmax(draft_logits, dim=-1)
         
         target_prob = target_prob.clamp(min=1e-10)

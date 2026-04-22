@@ -61,7 +61,7 @@ def verify_tokens(target, verify_ids, proposed, base_idx, device):
     next_token = None
     gamma = len(proposed)
 
-    target_logits_slice = target_logits[:, base_idx : base_idx + gamma, :]
+    target_logits_slice = target_logits[:, base_idx : base_idx + gamma + 1, :]
     pred_tokens = torch.argmax(target_logits_slice, dim=-1)
     proposed_tensor = torch.tensor(proposed, device=verify_ids.device, dtype=torch.long)
     matches = (pred_tokens[0, :-1] == proposed_tensor)
@@ -80,7 +80,7 @@ def verify_tokens_stochastic(target, verify_ids, draft_logits, proposed, base_id
 
     gamma = len(proposed)
 
-    target_logits_slice = target_logits[:, base_idx : base_idx + gamma, :]
+    target_logits_slice = target_logits[:, base_idx : base_idx + gamma + 1, :]
     target_probs = torch.softmax(target_logits_slice / temperature, dim=-1)
     draft_probs = torch.softmax(draft_logits / temperature, dim=-1)
 
@@ -132,8 +132,6 @@ def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: M
     session.record_metadata(
         config=benchmark_config,
         model_input=model_input,
-        target_model = model_pair.target_name,
-        draft_model = model_pair.draft_name,
         prompt_tokens = int(prompt_ids.shape[1]),
         dtype = str(next(target.parameters()).dtype),
     )

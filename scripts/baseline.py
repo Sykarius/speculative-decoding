@@ -16,8 +16,6 @@ def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: M
     session.record_metadata(
         config=benchmark_config,
         model_input=model_input,
-        target_model = model_pair.target_name,
-        draft_model = model_pair.draft_name,
         dtype = str(next(target.parameters()).dtype),
         prompt_tokens = int(inputs["input_ids"].shape[1]),
     )

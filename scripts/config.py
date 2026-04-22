@@ -52,6 +52,8 @@ class BaseAdaptiveConfig(BaseModel):
     strategy: str
     gamma_min: int
     gamma_max: int
+    step_size: int = Field(default=1, gt=0)
+    decrease_factor: float = Field(default=0.5, gt=0.0, lt=1.0)
 
     @model_validator(mode="after")
     def gamma_range(self) -> Self:
@@ -62,22 +64,21 @@ class BaseAdaptiveConfig(BaseModel):
     
 class AIMDConfig(BaseAdaptiveConfig):
     strategy: Literal["aimd"] = "aimd"
-    step_size: int = Field(default=1, gt=0)
-    decrease_factor: float = Field(default=0.5, gt=0.0, lt=1.0)
 
 class EntropyConfig(BaseAdaptiveConfig):
     strategy: Literal["entropy"] = "entropy"
-    low_threshold: float = Field(default=5.0, gt=0.0)
-    high_threshold: float = Field(default=7.0, gt=0.0)
+    low_entropy_threshold: float = Field(default=5.0, gt=0.0)
+    high_entropy_threshold: float = Field(default=7.0, gt=0.0)
     smoothing_factor: float = Field(default=0.9, gt=0.0, lt=1.0)
-    step_size: int = Field(default=1, gt=0)
+    warmup_steps: int = Field(default=10, gt=0)
 
 class JSDConfig(BaseAdaptiveConfig):
     strategy: Literal["jsd"] = "jsd"
-    low_threshold: float = Field(default=0.1, gt=0.0)
-    high_threshold: float = Field(default=0.3, gt=0.0)
+    low_jsd_threshold: float = Field(default=0.1, gt=0.0)
+    high_jsd_threshold: float = Field(default=0.3, gt=0.0)
+    high_entropy_threshold: float = Field(default=7.0, gt=0.0)
     smoothing_factor: float = Field(default=0.9, gt=0.0, lt=1.0)
-    step_size: int = Field(default=1, gt=0)
+    warmup_steps: int = Field(default=10, gt=0)
 
 AdaptiveConfig = Annotated[
     Union[AIMDConfig, EntropyConfig, JSDConfig],

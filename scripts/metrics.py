@@ -65,6 +65,7 @@ class BenchmarkMetadata(BenchmarkConfig, ModelInput):
 class StepTrace(BaseModel):
     step_id: int
     draft_window_size: int
+    actual_draft_window: int
     accepted_tokens: int
     draft_time_ms: float
     verify_time_ms: float
@@ -75,29 +76,44 @@ class StepTrace(BaseModel):
         if self.draft_window_size == 0:
             return 0.0
         return self.accepted_tokens / self.draft_window_size
-
+    
+class AdaptiveStep(BaseModel):
+    adaptive_time_ms: float
+    entropy: float | None = None
+    js_distance: float | None = None
 
 class SpeculativeMetrics(BaseModel):
     drafted_tokens_total: int = 0
     accepted_tokens_total: int = 0
     verification_rounds: int = 0
     step_traces: List[StepTrace] = Field(default_factory=list)
+    adaptive_steps: List[AdaptiveStep] = Field(default_factory=list)
 
     @computed_field(return_type=float)
     @property
     def acceptance_rate(self):
         return self.accepted_tokens_total / self.drafted_tokens_total if self.drafted_tokens_total > 0 else 0.0
     
-    def update(self, proposed: list, accepted: int, k: int, draft_time_ms: float, verify_time_ms: float):
-        self.drafted_tokens_total += len(proposed)
+    def update(self, proposed: list, accepted: int, k: int, draft_time_ms: float, verify_time_ms: float, early_stop_time_ms: float):
+        actual_draft_window = len(proposed)
+        self.drafted_tokens_total += actual_draft_window
         self.accepted_tokens_total += accepted
         self.verification_rounds += 1
         self.step_traces.append(StepTrace(
             step_id=self.verification_rounds,
             draft_window_size=k,
+            actual_draft_window=actual_draft_window,
             accepted_tokens=accepted,
             draft_time_ms=draft_time_ms,
-            verify_time_ms=verify_time_ms
+            verify_time_ms=verify_time_ms,
+            early_stop_time_ms=early_stop_time_ms
+        ))
+    
+    def update_adaptive(self, adaptive_time_ms: float, entropy: float | None = None, js_distance: float | None = None):
+        self.adaptive_steps.append(AdaptiveStep(
+            adaptive_time_ms=adaptive_time_ms,
+            entropy=entropy,
+            js_distance=js_distance
         ))
 
 
@@ -120,8 +136,11 @@ class Session(BaseModel):
             self.first_burst_tokens = len(tokens)
         self.generated.extend(tokens)
 
-    def record_speculative(self, proposed: list, accepted: int, k: int, draft_time_ms: float, verify_time_ms: float):
-        self.speculative_metrics.update(proposed, accepted, k, draft_time_ms, verify_time_ms)
+    def record_speculative(self, proposed: list, accepted: int, k: int, draft_time_ms: float, verify_time_ms: float, early_stop_time_ms: float):
+        self.speculative_metrics.update(proposed, accepted, k, draft_time_ms, verify_time_ms, early_stop_time_ms)
+    
+    def record_adaptive(self, adaptive_time_ms: float, entropy: float | None = None, js_distance: float | None = None):
+        self.speculative_metrics.update_adaptive(adaptive_time_ms, entropy, js_distance)
 
     def record_output(self, output_text: str):
         self.output_text = output_text

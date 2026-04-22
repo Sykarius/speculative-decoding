@@ -1,10 +1,10 @@
 from transformers import PreTrainedModel, PreTrainedTokenizer, AutoTokenizer, AutoModelForCausalLM
 from pydantic import BaseModel, ConfigDict, Field, model_validator, SkipValidation
-from typing import Literal, Self, Optional, Any
+from typing import Literal, Self, Optional, Annotated, Union
 
 DeviceType = Literal["cpu", "cuda", "mps"]
 MethodType = Literal["baseline", "speculative_greedy", "speculative"]
-AdaptiveType = Literal["aimd"]
+AdaptiveType = Literal["aimd", "entropy", "jsd"]
 
 
 class ModelPair(BaseModel):
@@ -45,11 +45,11 @@ class ModelPair(BaseModel):
         return data_dict
 
 
-class AdaptiveConfig(BaseModel):
+class BaseAdaptiveConfig(BaseModel):
 
     model_config = {"frozen": True}
 
-    name: str
+    strategy: str
     gamma_min: int
     gamma_max: int
 
@@ -59,6 +59,30 @@ class AdaptiveConfig(BaseModel):
             raise ValueError(f"--gamma_range is not valid")
 
         return self
+    
+class AIMDConfig(BaseAdaptiveConfig):
+    strategy: Literal["aimd"] = "aimd"
+    step_size: int = Field(default=1, gt=0)
+    decrease_factor: float = Field(default=0.5, gt=0.0, lt=1.0)
+
+class EntropyConfig(BaseAdaptiveConfig):
+    strategy: Literal["entropy"] = "entropy"
+    low_threshold: float = Field(default=5.0, gt=0.0)
+    high_threshold: float = Field(default=7.0, gt=0.0)
+    smoothing_factor: float = Field(default=0.9, gt=0.0, lt=1.0)
+    step_size: int = Field(default=1, gt=0)
+
+class JSDConfig(BaseAdaptiveConfig):
+    strategy: Literal["jsd"] = "jsd"
+    low_threshold: float = Field(default=0.1, gt=0.0)
+    high_threshold: float = Field(default=0.3, gt=0.0)
+    smoothing_factor: float = Field(default=0.9, gt=0.0, lt=1.0)
+    step_size: int = Field(default=1, gt=0)
+
+AdaptiveConfig = Annotated[
+    Union[AIMDConfig, EntropyConfig, JSDConfig],
+    Field(discriminator="strategy")
+]
 
 class BenchmarkConfig(BaseModel):
 

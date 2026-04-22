@@ -61,14 +61,15 @@ def verify_tokens(target, verify_ids, proposed, base_idx, device):
     next_token = None
     gamma = len(proposed)
 
-    pred_tokens = torch.argmax(target_logits[:, base_idx : base_idx + gamma + 1, :], dim=-1)
+    target_logits_slice = target_logits[:, base_idx : base_idx + gamma, :]
+    pred_tokens = torch.argmax(target_logits_slice, dim=-1)
     proposed_tensor = torch.tensor(proposed, device=verify_ids.device, dtype=torch.long)
     matches = (pred_tokens[0, :-1] == proposed_tensor)
 
     accepted_mask = torch.cumprod(matches.to(torch.int), dim=0)
     accepted = int(accepted_mask.sum().item())
     next_token = pred_tokens[0, accepted].item()
-    return accepted, next_token, target_logits
+    return accepted, next_token, target_logits_slice
 
 @profile
 def verify_tokens_stochastic(target, verify_ids, draft_logits, proposed, base_idx, temperature, device):
@@ -79,29 +80,32 @@ def verify_tokens_stochastic(target, verify_ids, draft_logits, proposed, base_id
 
     gamma = len(proposed)
 
-    target_probs = torch.softmax(target_logits[:, base_idx : base_idx + gamma + 1, :] / temperature, dim=-1)
+    target_logits_slice = target_logits[:, base_idx : base_idx + gamma, :]
+    target_probs = torch.softmax(target_logits_slice / temperature, dim=-1)
     draft_probs = torch.softmax(draft_logits / temperature, dim=-1)
 
     seq_id = torch.arange(gamma, device=device)
-    target_token_probs = target_probs[0, seq_id, gamma]
-    draft_token_probs = draft_probs[0, seq_id, gamma]
+    proposed_tensor = torch.tensor(proposed, device=device, dtype=torch.long)
+    target_token_probs = target_probs[0, seq_id, proposed_tensor]
+    draft_token_probs = draft_probs[0, seq_id, proposed_tensor]
+    
     acceptance_probs = torch.clamp(target_token_probs / draft_token_probs, max=1.0)
-    rand_vector = torch.rand(len(proposed), device=device)
+    rand_vector = torch.rand(gamma, device=device)
     is_accepted = rand_vector < acceptance_probs
     accepted_mask = torch.cumprod(is_accepted.to(torch.int), dim=0)
     accepted = int(accepted_mask.sum().item())
 
     if accepted < gamma:
         p_dist = draft_probs[0, accepted]
-        q_dist = target_probs[0, base_idx + accepted]
+        q_dist = target_probs[0, accepted]
         diff_dist = torch.clamp(q_dist - p_dist, min=0.0)
-        diff_dist /= diff_dist.sum()
+        diff_dist /= (diff_dist.sum() + 1e-10)
         next_token = torch.multinomial(diff_dist, num_samples=1).item()
     else:
         bonus_token_dist = target_probs[0, gamma]
         next_token = torch.multinomial(bonus_token_dist, num_samples=1).item()
 
-    return accepted, next_token, target_logits
+    return accepted, next_token, target_logits_slice
 
 
 def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: ModelInput) -> str:
@@ -175,7 +179,7 @@ def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: M
             session.record(to_emit, dt.elapsed_time)
             session.record_speculative(proposed, accepted, step_k, verify_time_ms, draft_time_ms, early_stop_time_ms)
             if is_adaptive:
-                gamma, adaptive_time_ms = adaptive.update_gamma(accepted, device)
+                gamma, adaptive_time_ms = adaptive.update_gamma(accepted, draft_logits, target_logits, device)
                 session.record_adaptive(adaptive_time_ms, adaptive.entropy, adaptive.js_distance)
 
     output_txt = generate_output(session, prompt_inputs, tokenizer, device)

@@ -133,7 +133,6 @@ def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: M
         config=benchmark_config,
         model_input=model_input,
         prompt_tokens = int(prompt_ids.shape[1]),
-        dtype = str(next(target.parameters()).dtype),
     )
 
     accepted = 0

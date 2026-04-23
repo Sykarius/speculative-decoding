@@ -9,7 +9,7 @@ from datasets import load_dataset
 from baseline import run as run_baseline 
 from speculative import run as run_speculative
 from config import MethodType, ModelInput, ModelPair, BenchmarkConfig
-from common import load_models
+from common import load_models, set_global_seed
 
 BASE_DATA_PATH = "./data/nvidia___speed-bench/"
 
@@ -69,7 +69,26 @@ def run_benchmark_data(model_pair: ModelPair, benchmark_config: BenchmarkConfig,
             output_txt = run_benchmark_prompt(model_pair, benchmark_config, model_input)
             context += "\n" + output_txt + "\n"
 
+
+def run_warmup(model_pair: ModelPair, benchmark_config: BenchmarkConfig):
+    if benchmark_config.warmup_steps > 0:
+        set_global_seed(benchmark_config.seed)
+        print(f"Warming up for {benchmark_config.warmup_steps} steps...")
+
+        warmup_config = benchmark_config.model_copy(
+            update= {
+                "max_new_tokens": benchmark_config.gamma + 1,
+                "output": "warmup_output.jsonl"
+            }
+        )
+
+        for i in range(benchmark_config.warmup_steps):
+            dummy_input = ModelInput(prompt=f"Hello, this is a short test prompt")
+            run_benchmark_prompt(model_pair, warmup_config, dummy_input)
+
+
 def run_benchmark(benchmark_config: BenchmarkConfig):
+    
     target_model, draft_model, tokenizer = load_models(benchmark_config)
     model_pair = ModelPair(
         tokenizer=tokenizer,
@@ -78,6 +97,10 @@ def run_benchmark(benchmark_config: BenchmarkConfig):
         draft=draft_model,
         draft_name=benchmark_config.draft_model
     )
+
+    run_warmup(model_pair, benchmark_config)
+    set_global_seed(benchmark_config.seed)
+
     if benchmark_config.prompt:
         model_input = ModelInput(prompt=benchmark_config.prompt)
         run_benchmark_prompt(model_pair, benchmark_config, model_input)
@@ -85,8 +108,11 @@ def run_benchmark(benchmark_config: BenchmarkConfig):
         run_benchmark_data(model_pair, benchmark_config, benchmark_config.data)
 
 
-if __name__ == '__main__':
+def main():
     parser = create_parser()
     args = parser.parse_args()
     benchmark_config = load_yaml_config(args.config)
     run_benchmark(benchmark_config)
+
+if __name__ == '__main__':
+    main()

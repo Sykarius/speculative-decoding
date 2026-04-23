@@ -52,7 +52,6 @@ def profile(func: Callable) -> Callable:
 
 
 class BenchmarkMetadata(BenchmarkConfig, ModelInput):
-    dtype: str
     prompt_tokens: int
     timestamp: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
 
@@ -179,4 +178,3 @@ class Session(BaseModel):
         with open(full_path, 'a') as f:
             f.write(summary + "\n")
         print("Saved to:", full_path)
-

@@ -69,119 +69,98 @@ python scripts/download.py --model distilgpt2 --path ./models/
 ```
 
 
-## Running the speculative decoding benchmark
+## Running the Speculative Decoding Benchmark
+
+The benchmarking script is now configured using a YAML file. 
 
 ```sh 
-python scripts/benchmark.py --target <model_name> --prompt "<your_prompt>" [OPTIONS]
+python scripts/benchmark.py --config <path_to_config.yaml>
 ```
 
-| Argument | Type | Required | Default | Description |
-| :--- | :--- | :--- | :--- | :--- |
-| `--target` | `str` | **Yes** | N/A | The Hugging Face Hub model ID to use as target (e.g., 'distilgpt2'). |
-| `--prompt` | `str` | **Yes** | N/A | The input prompt to use for generation. |
-| `--draft` | `str` | No | `None` | The Hugging Face Hub model ID of draft model to use for speculative decoding (not used in baseline). |
-| `--max_new_tokens` | `int` | No | `32` | The maximum number of new tokens to generate. |
-| `--method` | `str` | No | `baseline` | The decoding method to use. |
-| `--device` | `str` | No | `cpu` | The device to run the benchmark on (e.g., 'cpu' or 'cuda' or 'mps'). |
-| `--gamma` | `int` | No | `4` | Fixed lookahead for speculative methods. |
-| `--temperature` | `float` | No | `1.0` | Temperature for stochastic speculative decoding.
-| `--adaptive` | `str` | No | `None` | Type of adaptive strategy to use (eg. 'aimd') |
-| `--gamma_range` | `str` | No | `None` | Bounds of the lookahead `gamma` when adaptive strategy is used |
+### Configuration Structure (YAML)
 
-### Supported Methods:
+Below are the supported fields for your configuration file, mapped directly to the `BenchmarkConfig` schema.
 
-- `baseline`: Standard autoregressive language modeling. It generates one token at a time by selecting the highest-probability token from the target model's output distribution. This method does not utilize a draft model or speculative decoding techniques. 
-- `speculative_greedy`: Linear speculative decoding with fixed lookahead `gamma`. Requires `--draft` to specify the draft model. It verifies the draft tokens greedily
-- `speculative`: Linear speculative decoding with fixed lookahead `gamma`. Requires `--draft` to specify the draft model. It verifies the draft tokens stochastically
+| Field | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `method` | `str` | **Required** | The decoding method to use. Must be `baseline`, `speculative_greedy`, or `speculative`. |
+| `target_model` | `str` | **Required** | The Hugging Face Hub model ID to use as target (e.g., 'meta-llama/Llama-3.1-8B'). |
+| `prompt` / `data` | `str` | **Required** | Provide exactly one of these. Use `prompt` for a single string input, or `data` for the path to a dataset. |
+| `output` | `str` | `"output.jsonl"` | Path to the output metrics file. Must end with `.jsonl`. |
+| `max_new_tokens` | `int` | `32` | The maximum number of new tokens to generate. Must be > 0. |
+| `device` | `str` | `"cpu"` | Hardware to run the benchmark on (`cpu`, `cuda`, `mps`). |
+| `dtype` | `str` | `"bfloat16"` | Precision for model weights (`float16`, `bfloat16`, `float32`, `auto`). |
+| `seed` | `float` | `690` | Random seed to lock stochastic processes for reproducibility. |
+| `warmup_steps` | `int` | `10` | Number of dummy runs to execute before recording benchmark metrics. |
 
-### Example
+#### Speculative Decoding Fields
+If your `method` is `speculative` or `speculative_greedy`, the following fields are **required**:
 
-#### Baseline
-```sh
-python scripts/benchmark.py \
-    --target 'meta-llama/Llama-3.1-8B' \
-    --prompt "The future of AI is" \
-    --max_new_tokens 50 \
-    --device cpu
+| Field | Type | Default | Description |
+| :--- | :--- | :--- | :--- |
+| `draft_model` | `str` | **Required** | The Hugging Face Hub model ID of the draft model. |
+| `gamma` | `int` | **Required** | Fixed lookahead window size for speculative generation. Must be > 0. |
+| `temperature` | `float` | `1.0` | Sampling temperature. Only applicable to the `speculative` method. |
+
+#### Adaptive Fields
+You can optionally define an `adaptive` block in your YAML to dynamically scale `gamma`. All adaptive blocks require `strategy`, `gamma_min`, and `gamma_max`.
+
+**Shared Adaptive Fields:**
+* `strategy`: (`"aimd"`, `"entropy"`, or `"jsd"`)
+* `gamma_min` (int): Minimum lookahead window.
+* `gamma_max` (int): Maximum lookahead window.
+* `step_size` (int, default: 1): How much to increase the window.
+* `decrease_factor` (float, default: 0.5): Multiplier to shrink window on failure.
+
+**Strategy-Specific Fields:**
+* **Entropy (`strategy: entropy`)**:
+  * `low_entropy_threshold` (float, default: 5.0)
+  * `high_entropy_threshold` (float, default: 7.0)
+  * `smoothing_factor` (float, default: 0.9)
+  * `warmup_steps` (int, default: 10)
+* **JSD (`strategy: jsd`)**:
+  * `low_jsd_threshold` (float, default: 0.1)
+  * `high_jsd_threshold` (float, default: 0.3)
+  * `high_entropy_threshold` (float, default: 7.0)
+  * `smoothing_factor` (float, default: 0.9)
+  * `warmup_steps` (int, default: 10)
+
+
+### Example Configurations
+
+#### 1. Baseline Autoregressive
+```yaml
+method: baseline
+target_model: meta-llama/Llama-3.1-8B
+prompt: "The future of AI is"
+max_new_tokens: 50
+device: mps
 ```
 
-#### Fixed-Window Speculative Decoding Greedy Approach
-```sh
-python scripts/benchmark.py \
-    --target 'meta-llama/Llama-3.1-8B' \
-    --draft 'meta-llama/Llama-3.2-1B' \
-    --prompt "The future of AI is" \
-    --max_new_tokens 50 \
-    --method speculative_greedy \
-    --gamma 4 \
-    --device cpu
+#### 2. Fixed-Window Speculative Greedy
+```yaml
+method: speculative_greedy
+target_model: meta-llama/Llama-3.1-8B
+draft_model: meta-llama/Llama-3.2-1B
+prompt: "The future of AI is"
+gamma: 4
+max_new_tokens: 50
+device: cuda
 ```
 
-#### Fixed-Window Speculative Decoding Stochastic Approach
-
-```sh
-python scripts/benchmark.py \
-    --target 'meta-llama/Llama-3.1-8B' \
-    --draft 'meta-llama/Llama-3.2-1B' \
-    --prompt "The future of AI is" \
-    --max_new_tokens 50 \
-    --method speculative \
-    --gamma 4 \
-    --temperature 1.0 \
-    --device cpu
+#### 3. Adaptive AIMD Speculative
+```yaml
+method: speculative
+target_model: meta-llama/Llama-3.1-8B
+draft_model: meta-llama/Llama-3.2-1B
+data: "path/to/dataset.json"
+gamma: 4
+temperature: 1.0
+max_new_tokens: 128
+adaptive:
+  strategy: aimd
+  gamma_min: 1
+  gamma_max: 16
+  step_size: 2
+  decrease_factor: 0.5
 ```
-
-#### Adaptive Speculative Decoding
-
-```sh
-python scripts/benchmark.py \
-    --target 'meta-llama/Llama-3.1-8B' \
-    --draft 'meta-llama/Llama-3.2-1B' \
-    --prompt "The future of AI is" \
-    --max_new_tokens 50 \
-    --method speculative \
-    --gamma 4 \
-    --temperature 1.0 \
-    --adaptive aimd \
-    --gamma_range 1 16 \
-    --device cpu
-```
-
-## Smoke suite (multi-prompt JSONL runs)
-
-`prompts/smoke.txt` holds one prompt per line (`#` starts a comment; empty lines are skipped).  
-`scripts/run_smoke_suite.py` calls `scripts/benchmark.py` once per prompt and method; each run **appends** a JSON line to the same files as manual runs (e.g. `results/raw/baseline.jsonl`, `results/raw/speculative_greedy_fixed.jsonl`).
-
-```sh
-uv run python scripts/run_smoke_suite.py \
-  --target distilgpt2 \
-  --draft distilgpt2 \
-  --device cpu
-```
-
-Optional: `--methods baseline speculative_greedy speculative`, `--prompts-file path/to/prompts.txt`, `--dry-run` to print commands only.
-
-Model IDs can come from **`BENCHMARK_TARGET` / `BENCHMARK_DRAFT`** in `.env` instead of `--target` / `--draft` (see `.env.example` and [docs/BENCHMARKING.md](docs/BENCHMARKING.md)).
-
-## Export JSONL → CSV (optional)
-
-For spreadsheet / report tables, flatten all `results/raw/*.jsonl` into `results/processed/runs.csv`:
-
-```sh
-uv run python scripts/export_runs_csv.py
-```
-
-JSONL remains the source of truth; CSV is regenerated on demand (see [docs/BENCHMARKING.md](docs/BENCHMARKING.md)).
-
-## Draft model sweep
-
-One **target**, several **draft** models, same prompts. Per prompt: optional **baseline**, then **`speculative_greedy`** for each draft (typical: larger target, smaller drafts — e.g. GPT-2 target with `distilgpt2` + `gpt2` drafts).
-
-```sh
-uv run python scripts/run_draft_sweep.py \
-  --target openai-community/gpt2 \
-  --drafts distilgpt2 openai-community/gpt2 \
-  --device cpu
-```
-
-Use `--no-baseline` if you already captured baseline lines. Then `uv run python scripts/export_runs_csv.py` for a combined table.

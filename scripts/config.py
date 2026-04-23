@@ -64,7 +64,7 @@ class BenchmarkConfig(BaseModel):
     
     method: MethodType
     target_model: str = Field(description="Name of the target model to load (e.g. 'gpt2-large').", min_length=1)
-    output: str = Field(default="output", pattern=r"^.*\.jsonl$")
+    output: str = Field(default="output.jsonl", pattern=r"^.*\.jsonl$")
     max_new_tokens: int = Field(default=32, gt=0)
     gamma: Optional[int] = Field(default=None, gt=0)
     device: DeviceType = Field(default="cpu")

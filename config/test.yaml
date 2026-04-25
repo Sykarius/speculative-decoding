@@ -1,4 +1,5 @@
 method: speculative
+sampling: speculative
 target_model: distilgpt2
 draft_model: distilgpt2
 gamma: 4

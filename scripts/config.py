@@ -1,10 +1,11 @@
-from transformers import PreTrainedModel, PreTrainedTokenizer, AutoTokenizer, AutoModelForCausalLM
+from transformers import PreTrainedModel, PreTrainedTokenizer
 from pydantic import BaseModel, ConfigDict, Field, model_validator, SkipValidation
 from typing import Literal, Self, Optional, Annotated, Union
 
 DeviceType = Literal["cpu", "cuda", "mps"]
-MethodType = Literal["baseline", "speculative_greedy", "speculative"]
-AdaptiveType = Literal["aimd", "entropy", "jsd"]
+MethodType = Literal["baseline", "speculative"]
+SamplingType = Literal["speculative", "greedy", "ada"]
+AdaptiveType = Literal["aimd", "entropy", "jsd", "ada"]
 
 
 class ModelPair(BaseModel):
@@ -44,6 +45,7 @@ class EntropyConfig(BaseAdaptiveConfig):
     high_entropy_threshold: float = Field(default=7.0, gt=0.0)
     smoothing_factor: float = Field(default=0.9, gt=0.0, lt=1.0)
     warmup_steps: int = Field(default=10, gt=0)
+    resize: bool = False
 
 class JSDConfig(BaseAdaptiveConfig):
     strategy: Literal["jsd"] = "jsd"
@@ -53,8 +55,15 @@ class JSDConfig(BaseAdaptiveConfig):
     smoothing_factor: float = Field(default=0.9, gt=0.0, lt=1.0)
     warmup_steps: int = Field(default=10, gt=0)
 
+class AdaConfig(BaseAdaptiveConfig):
+    strategy: Literal["ada"] = "ada"
+    smoothing_factor: float = Field(default=0.9, gt=0.0, lt=1.0)
+    high_entropy_threshold: float = Field(default=7.0, gt=0.0)
+    avg_da: float = Field(default=0.15, gt=0.0)
+    avg_dr: float = Field(default=0.49, gt=0.0)
+
 AdaptiveConfig = Annotated[
-    Union[AIMDConfig, EntropyConfig, JSDConfig],
+    Union[AIMDConfig, EntropyConfig, JSDConfig, AdaConfig],
     Field(discriminator="strategy")
 ]
 
@@ -76,14 +85,17 @@ class BenchmarkConfig(BaseModel):
     dtype: Literal["float16", "bfloat16", "float32", "auto"] = "bfloat16"
     seed: float = Field(default=690)
     warmup_steps: int = Field(default=10, ge=0)
+    sampling: SamplingType | None = None
 
     @model_validator(mode="after")
     def check_speculative_requirements(self) -> Self:
-        if self.method in ("speculative_greedy", "speculative"):
+        if self.method == "speculative":
             if self.gamma is None:
                 raise ValueError(f"--gamma is required for method '{self.method}'")
             if self.draft_model is None:
                 raise ValueError(f"--draft is required for method '{self.method}'")
+            if self.sampling is None:
+                raise ValueError(f"sampling is required for method '{self.method}'")
         
         return self
     
@@ -94,6 +106,12 @@ class BenchmarkConfig(BaseModel):
         if self.prompt and self.data:
             raise ValueError(f"Only one of --prompt or --data can be provided, not both.")
         return self
+    
+    @model_validator(mode="after")
+    def check_ada_config(self) -> Self:
+        if self.sampling and self.sampling == "ada":
+            if self.adaptive is None or self.adaptive.strategy != "ada":
+                raise ValueError(f"AdaSD adaptive config needs to be provided when sampling is Ada")
 
 class ModelInput(BaseModel):
     prompt: str = Field(min_length=1)

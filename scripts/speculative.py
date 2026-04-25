@@ -1,30 +1,33 @@
 import torch
 from transformers import DynamicCache
 from metrics import DeviceTime, Session, profile
-from common import generate_output, greedy_token, tokenize
+from common import generate_output, tokenize, compute_js_distance
 from config import ModelInput, ModelPair, BenchmarkConfig
 from adaptive import AdaptiveController
 
 @profile
 def draft_tokens(
     draft_model, 
-    input_ids, 
+    draft_input_ids, 
     gamma, 
     device,
     past_key_values,
-    method = "speculative_greedy",
+    sampling = "greedy",
     temperature = 1.0,
     adaptive_controller: AdaptiveController | None = None
 ):
     proposed = []
-    draft_ids = input_ids
     draft_logits = []
     early_exit_time_ms = 0.0
 
-    for _ in range(gamma):
-        draft_outputs = draft_model(input_ids=draft_ids, past_key_values=past_key_values, use_cache=True)
-        logits = draft_outputs.logits
-        next_token_logits = logits[:, -1, :]
+    outputs = draft_model(
+        input_ids=draft_input_ids,
+        past_key_values=past_key_values,
+        use_cache=True,
+    )
+    next_token_logits = outputs.logits[:, -1, :]
+
+    for i in range(gamma):
         draft_logits.append(next_token_logits)
 
         # Early Stop in Adaptive Decoding
@@ -36,34 +39,47 @@ def draft_tokens(
             if is_confused:
                 break
         
-        if method == "speculative_greedy":
+        if sampling == "greedy":
             # Greedy Sampling
-            token = greedy_token(logits)
+            token = int(torch.argmax(next_token_logits, dim=-1).item())
         else:
             # Speculative Sampling
             probs = torch.softmax(next_token_logits / temperature, dim = -1)
             token = int(torch.multinomial(probs, num_samples=1).item())
         
         proposed.append(token)
+
+        # Draft is run once outside the loop
+        if i == gamma - 1:
+            break
+    
         next_token = torch.tensor([[token]], device=device, dtype=torch.long)
-        draft_ids = torch.cat([draft_ids, next_token], dim=1)
+        outputs = draft_model(
+            input_ids=next_token,
+            past_key_values=past_key_values,
+            use_cache=True
+        )
+        next_token_logits = outputs.logits[:, -1, :]
+    
+    if len(proposed) == 0:
+        # Early-exit on the very first token: nothing to verify this round.
+        return proposed, None, None, early_exit_time_ms
     
     proposed_tensor = torch.tensor([proposed], device=device, dtype=torch.long)
-    verify_ids = torch.cat([input_ids, proposed_tensor], dim=1)
     draft_logits = torch.stack(draft_logits, dim=1)
 
-    return proposed, verify_ids, draft_logits, early_exit_time_ms
+    return proposed, proposed_tensor, draft_logits, early_exit_time_ms
 
 
 @profile
-def verify_tokens(target, verify_ids, proposed, base_idx, past_key_values, device):
+def verify_tokens(target, verify_ids, proposed, past_key_values, device):
     target_outputs = target(input_ids=verify_ids, past_key_values=past_key_values, use_cache=True)
     target_logits = target_outputs.logits
     accepted = 0
     next_token = None
     gamma = len(proposed)
 
-    target_logits_slice = target_logits[:, base_idx : base_idx + gamma + 1, :]
+    target_logits_slice = target_logits[:, -(gamma + 1):, :]
     pred_tokens = torch.argmax(target_logits_slice, dim=-1)
     proposed_tensor = torch.tensor(proposed, device=verify_ids.device, dtype=torch.long)
     matches = (pred_tokens[0, :-1] == proposed_tensor)
@@ -74,7 +90,7 @@ def verify_tokens(target, verify_ids, proposed, base_idx, past_key_values, devic
     return accepted, next_token, target_logits_slice
 
 @profile
-def verify_tokens_stochastic(target, verify_ids, draft_logits, proposed, base_idx, temperature, past_key_values, device):
+def verify_tokens_stochastic(target, verify_ids, draft_logits, proposed, temperature, past_key_values, device):
     target_outputs = target(input_ids=verify_ids, past_key_values=past_key_values, use_cache=True)
     target_logits = target_outputs.logits
     accepted = 0
@@ -82,7 +98,7 @@ def verify_tokens_stochastic(target, verify_ids, draft_logits, proposed, base_id
 
     gamma = len(proposed)
 
-    target_logits_slice = target_logits[:, base_idx : base_idx + gamma + 1, :]
+    target_logits_slice = target_logits[:, -(gamma + 1):, :]
     target_probs = torch.softmax(target_logits_slice / temperature, dim=-1)
     draft_probs = torch.softmax(draft_logits / temperature, dim=-1)
 
@@ -110,6 +126,52 @@ def verify_tokens_stochastic(target, verify_ids, draft_logits, proposed, base_id
     return accepted, next_token, target_logits_slice
 
 
+@profile
+def verify_tokens_adasd(
+    target, 
+    verify_ids, 
+    draft_logits, 
+    proposed, 
+    past_key_values, 
+    adaptive_controller: AdaptiveController,
+    device,
+):
+    target_outputs = target(input_ids=verify_ids, past_key_values=past_key_values, use_cache=True)
+    target_logits = target_outputs.logits
+    gamma = len(proposed)
+
+    # Slice target logits to match the proposed window + the bonus token
+    target_logits_slice = target_logits[:, -(gamma + 1):, :]
+    
+    # Distributions for the proposed tokens (0 to gamma-1)
+    target_probs = torch.softmax(target_logits_slice[:, :-1, :], dim=-1)
+    draft_probs = torch.softmax(draft_logits, dim=-1)
+
+    # Calculate JSD for each token position
+    js_distances = compute_js_distance(target_probs, draft_probs).squeeze(0) # [gamma]
+    
+    accepted = 0
+    # The current TV from the controller
+    
+    # AdaSD Logic: Accept tokens while JSD <= TV
+    for i in range(gamma):
+        if js_distances[i] <= adaptive_controller.threshold_v:
+            accepted += 1
+        else:
+            break
+            
+    # Record stats for the next threshold update (Section 4.4 of AdaSD)
+    accepted_dists = js_distances[:accepted].tolist()
+    rejected_dist = js_distances[accepted].item() if accepted < gamma else None
+
+    adaptive_controller.update_threshold(accepted_dists, rejected_dist)
+
+    # Next token is the argmax of the target at the first rejected (or bonus) position
+    next_token = torch.argmax(target_logits_slice[0, accepted], dim=-1).item()
+
+    return accepted, next_token, target_logits_slice
+
+
 def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: ModelInput) -> str:
 
     draft = model_pair.draft
@@ -124,9 +186,6 @@ def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: M
     if is_adaptive:
         adaptive = AdaptiveController(gamma, benchmark_config.adaptive)
 
-    if not draft:
-        raise ValueError("speculative_greedy/speculative requires --draft <model_name>.")
-
     prompt_inputs = tokenize(tokenizer, model_input.prompt, device)
     prompt_ids = prompt_inputs["input_ids"]
 
@@ -139,6 +198,8 @@ def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: M
 
     target_cache = DynamicCache()
     draft_cache = DynamicCache()
+    target_pending = prompt_ids
+    draft_pending = prompt_ids
 
     accepted = 0
 
@@ -148,21 +209,16 @@ def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: M
                 remaining = max_new_tokens - len(session.generated)
                 step_k = min(gamma, remaining)
 
-                current_ids = prompt_ids
-                if session.generated:
-                    current_ids = torch.cat(
-                        [prompt_ids, torch.tensor([session.generated], device=device, dtype=torch.long)], dim=1
-                    )
-
                 # Draft tokens
+                pre_draft_cache_len = draft_cache.get_seq_length()
                 (
                     proposed,
-                    verify_ids,
+                    proposed_tensor,
                     draft_logits,
                     early_stop_time_ms,
                 ), draft_time_ms = draft_tokens(
                     draft,
-                    current_ids,
+                    draft_pending,
                     step_k,
                     device,
                     past_key_values=draft_cache,
@@ -170,40 +226,69 @@ def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: M
                     temperature=temperature,
                     adaptive_controller=adaptive,
                 )
+                
+                if len(proposed) == 0:
+                    continue
+
+                verify_ids = torch.cat([target_pending, proposed_tensor])
 
                 # Verify tokens
-                base_idx = current_ids.shape[1] - 1
-                if benchmark_config.method == "speculative_greedy":
+                if benchmark_config.sampling == "greedy":
                     (accepted, next_token, target_logits), verify_time_ms = (
                         verify_tokens(
-                            target, verify_ids, proposed, base_idx, target_cache, device
+                            target, verify_ids, proposed, target_cache, device
                         )
                     )
-                else:
+                elif benchmark_config.sampling == "speculative":
                     (accepted, next_token, target_logits), verify_time_ms = (
                         verify_tokens_stochastic(
                             target,
                             verify_ids,
                             draft_logits,
                             proposed,
-                            base_idx,
                             temperature,
                             target_cache,
                             device,
                         )
                     )
+                else:
+                    (accepted, next_token, target_logits), verify_time_ms = (
+                        verify_tokens_adasd(
+                            target, 
+                            verify_ids, 
+                            draft_logits, 
+                            proposed, 
+                            target_cache, 
+                            adaptive,
+                            device,
+                        )
+                    )
 
+                # Crop Draft Cache
+                draft_committed_len = pre_draft_cache_len + draft_pending.shape[1] + accepted
+                draft_cache.crop(draft_committed_len)
+
+                # Crop Target Cache
+                target_pre_len = target_cache.get_seq_length() - verify_ids.shape[1]
+                target_committed_len = target_pre_len + target_pending.shape[1] + accepted
+                target_cache.crop(target_committed_len)
+
+                # Emit
                 to_emit = proposed[:accepted]
                 to_emit.append(next_token)
                 to_emit = to_emit[: remaining]
                 if not to_emit:
                     break
 
+                emitted_tensor = torch.tensor([to_emit], device=device, dtype=torch.long)
+                draft_pending = emitted_tensor
+                target_pending = emitted_tensor
+
             session.record(to_emit, dt.elapsed_time)
             session.record_speculative(proposed, accepted, step_k, verify_time_ms, draft_time_ms, early_stop_time_ms)
             if is_adaptive:
-                gamma, adaptive_time_ms = adaptive.update_gamma(accepted, draft_logits, target_logits, device)
-                session.record_adaptive(adaptive_time_ms, adaptive.entropy, adaptive.js_distance)
+                gamma, adaptive_time_ms = adaptive.update_gamma(accepted, target_logits, draft_logits, device)
+                session.record_adaptive(adaptive_time_ms, adaptive.entropy, adaptive.js_distance, adaptive.threshold_v)
 
     output_txt = generate_output(session, prompt_inputs, tokenizer, device)
     session.write(benchmark_config.output)

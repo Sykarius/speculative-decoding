@@ -83,7 +83,7 @@ Below are the supported fields for your configuration file, mapped directly to t
 
 | Field | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `method` | `str` | **Required** | The decoding method to use. Must be `baseline`, `speculative_greedy`, or `speculative`. |
+| `method` | `str` | **Required** | The decoding method to use. Must be `baseline` or `speculative`. |
 | `target_model` | `str` | **Required** | The Hugging Face Hub model ID to use as target (e.g., 'meta-llama/Llama-3.1-8B'). |
 | `prompt` / `data` | `str` | **Required** | Provide exactly one of these. Use `prompt` for a single string input, or `data` for the path to a dataset. |
 | `output` | `str` | `"output.jsonl"` | Path to the output metrics file. Must end with `.jsonl`. |
@@ -94,13 +94,14 @@ Below are the supported fields for your configuration file, mapped directly to t
 | `warmup_steps` | `int` | `10` | Number of dummy runs to execute before recording benchmark metrics. |
 
 #### Speculative Decoding Fields
-If your `method` is `speculative` or `speculative_greedy`, the following fields are **required**:
+If your `method` is `speculative`, the following fields are **required**:
 
 | Field | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `draft_model` | `str` | **Required** | The Hugging Face Hub model ID of the draft model. |
 | `gamma` | `int` | **Required** | Fixed lookahead window size for speculative generation. Must be > 0. |
-| `temperature` | `float` | `1.0` | Sampling temperature. Only applicable to the `speculative` method. |
+| `temperature` | `float` | `1.0` | Sampling temperature. Only applicable to the `speculative/ada` sampling. |
+| `sampling` | 'str` | **Required** | Sampling method to used to verify step (`speculative`, `greedy`, `ada`) |
 
 #### Adaptive Fields
 You can optionally define an `adaptive` block in your YAML to dynamically scale `gamma`. All adaptive blocks require `strategy`, `gamma_min`, and `gamma_max`.
@@ -139,7 +140,8 @@ device: mps
 
 #### 2. Fixed-Window Speculative Greedy
 ```yaml
-method: speculative_greedy
+method: speculative
+sampling: greedy
 target_model: meta-llama/Llama-3.1-8B
 draft_model: meta-llama/Llama-3.2-1B
 prompt: "The future of AI is"
@@ -156,6 +158,7 @@ draft_model: meta-llama/Llama-3.2-1B
 data: "path/to/dataset.json"
 gamma: 4
 temperature: 1.0
+sampling: speculative
 max_new_tokens: 128
 adaptive:
   strategy: aimd

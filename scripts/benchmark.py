@@ -1,8 +1,6 @@
 import argparse
-from marshal import version
 from pathlib import Path
 import yaml
-from typing import Tuple
 import os
 from datasets import load_dataset
 
@@ -39,7 +37,7 @@ def load_yaml_config(path: str) -> BenchmarkConfig:
 def run_benchmark_prompt(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: ModelInput) -> str:
     if benchmark_config.method == "baseline":
         return run_baseline(model_pair, benchmark_config, model_input)
-    elif benchmark_config.method in ("speculative_greedy", "speculative"):
+    elif benchmark_config.method == "speculative":
         return run_speculative(model_pair, benchmark_config, model_input)
     else:
         raise ValueError(f"Unsupported method: {benchmark_config.method}. Supported methods: {MethodType.__args__}.")
@@ -87,8 +85,8 @@ def run_warmup(model_pair: ModelPair, benchmark_config: BenchmarkConfig):
             run_benchmark_prompt(model_pair, warmup_config, dummy_input)
 
 
-def run_benchmark(benchmark_config: BenchmarkConfig):
-    
+def run_benchmark(config_path: str):
+    benchmark_config = load_yaml_config(config_path)
     target_model, draft_model, tokenizer = load_models(benchmark_config)
     model_pair = ModelPair(
         tokenizer=tokenizer,
@@ -107,12 +105,7 @@ def run_benchmark(benchmark_config: BenchmarkConfig):
     else:
         run_benchmark_data(model_pair, benchmark_config, benchmark_config.data)
 
-
-def main():
+if __name__ == '__main__':
     parser = create_parser()
     args = parser.parse_args()
-    benchmark_config = load_yaml_config(args.config)
-    run_benchmark(benchmark_config)
-
-if __name__ == '__main__':
-    main()
+    run_benchmark(args.config)

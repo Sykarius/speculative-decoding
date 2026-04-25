@@ -2,6 +2,7 @@ from config import AdaptiveConfig
 import torch
 import torch.nn.functional as F
 from metrics import profile
+from common import compute_js_distance
 
 class AdaptiveController:
 
@@ -18,6 +19,16 @@ class AdaptiveController:
         self.entropy = None
         self.js_distance = None
 
+        self.avg_da = None
+        self.avg_dr = None
+        self.threshold_v = None
+
+        if self.strategy == "ada":
+            self.avg_da = config.avg_da
+            self.avg_dr = config.avg_dr
+            self.threshold_v = (self.avg_da + self.avg_dr) / 2
+
+
         self.draft_tokens_evaluated = 0
         self.verify_steps_taken = 0
 
@@ -26,12 +37,14 @@ class AdaptiveController:
 
         self.verify_steps_taken += 1
 
-        if self.config.type == 'aimd':
+        if self.strategy == 'aimd':
             self.aimd(accepted)
-        elif self.config.type == 'entropy':
+        elif self.strategy == 'entropy':
             self.entropy_based()
-        elif self.config.type == 'jsd':
+        elif self.strategy == 'jsd':
             self.jensen_shannon_distance(target_logits, draft_logits)
+        elif self.strategy == 'ada':
+            pass # Do nothing
         else:
             raise ValueError(f"Unsupported adaptive method: {self.strategy}")
 
@@ -58,7 +71,7 @@ class AdaptiveController:
         return self.entropy > self.config.high_entropy_threshold
 
     def entropy_based(self):
-        if self.entropy is not None and self.verify_steps_taken > self.config.warmup_steps:
+        if self.entropy is not None and self.config.resize and self.verify_steps_taken > self.config.warmup_steps:
             if self.entropy < self.config.low_entropy_threshold:
                 new_gamma = self.gamma + self.config.step_size
                 self.gamma = min(new_gamma, self.config.gamma_max)
@@ -71,14 +84,8 @@ class AdaptiveController:
         target_prob = F.softmax(target_logits[:, :-1, :], dim=-1)
         draft_prob = F.softmax(draft_logits, dim=-1)
         
-        target_prob = target_prob.clamp(min=1e-10)
-        draft_prob = draft_prob.clamp(min=1e-10)
-        m = (0.5 * (target_prob + draft_prob)).clamp(min=1e-10)
-        
-        kl_target = torch.sum(target_prob * (torch.log(target_prob) - torch.log(m)))
-        kl_draft = torch.sum(draft_prob * (torch.log(draft_prob) - torch.log(m)))
-        js_divergence = 0.5 * (kl_target + kl_draft)
-        js_distance = torch.sqrt(js_divergence).item()
+        js_distance_per_token = compute_js_distance(target_prob, draft_prob)
+        js_distance = torch.mean(js_distance_per_token).item()
 
         if self.js_distance is None:
             self.js_distance = js_distance
@@ -94,3 +101,16 @@ class AdaptiveController:
                 self.gamma = max(new_gamma, self.config.gamma_min)
 
         return js_distance
+
+    def update_threshold(self, accepted_dists, rejected_dist):
+
+        if self.strategy != "ada":
+            raise ValueError(f"The adaptive strategy must be ada to update threshold")
+
+        for d in accepted_dists:
+            self.avg_da = self.config.smoothing_factor * self.avg_da + (1 - self.config.smoothing_factor) * d
+        
+        if rejected_dist is not None:
+            self.avg_dr = self.config.smoothing_factor * self.avg_da + (1 - self.config.smoothing_factor) * rejected_dist
+
+        self.threshold_v = (self.avg_da + self.avg_dr) / 2

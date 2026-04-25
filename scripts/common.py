@@ -1,6 +1,5 @@
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from metrics import profile
 from config import BenchmarkConfig
 import numpy as np
 import random
@@ -14,25 +13,6 @@ def tokenize(tokenizer, prompt: str, device: str):
 def greedy_token(logits):
     return int(torch.argmax(logits[:, -1, :], dim=-1).item())
 
-@profile
-def draft_tokens(draft_model, input_ids, step_k, device):
-    proposed = []
-    draft_ids = input_ids
-    draft_logits = []
-    for _ in range(step_k):
-        draft_outputs = draft_model(input_ids=draft_ids)
-        logits = draft_outputs.logits
-        draft_logits.append(logits[:, -1, :])
-        token = greedy_token(logits)
-        proposed.append(token)
-        next_token = torch.tensor([[token]], device=device, dtype=torch.long)
-        draft_ids = torch.cat([draft_ids, next_token], dim=1)
-    
-    proposed_tensor = torch.tensor([proposed], device=device, dtype=torch.long)
-    verify_ids = torch.cat([input_ids, proposed_tensor], dim=1)
-    draft_logits = torch.stack(draft_logits, dim=1)
-
-    return proposed, verify_ids, draft_logits
 
 def generate_output(session, inputs, tokenizer, device):
     full_ids = torch.tensor([session.generated], device=device)
@@ -78,3 +58,20 @@ def set_global_seed(seed: int):
         torch.cuda.manual_seed_all(seed)
     elif torch.backends.mps.is_available():
         torch.mps.manual_seed(seed)
+
+
+def compute_js_distance(p: torch.Tensor, q: torch.Tensor):
+    """
+    Computes JS Distance: sqrt(0.5 * KL(P||M) + 0.5 * KL(Q||M))
+    where M = 0.5 * (P + Q)
+    """
+    p = p.clamp(min=1e-10)
+    q = q.clamp(min=1e-10)
+    m =( 0.5 * (p + q)).clamp(min=1e-10)
+    log_m = torch.log(m)
+    
+    kl_pm = torch.sum(p * (torch.log(p) - log_m), dim=-1)
+    kl_qm = torch.sum(q * (torch.log(q) - log_m), dim=-1)
+    
+    js_divergence = 0.5 * kl_pm + 0.5 * kl_qm
+    return torch.sqrt(js_divergence.clamp(min=0.0))

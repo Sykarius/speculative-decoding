@@ -73,9 +73,10 @@ def run_warmup(model_pair: ModelPair, benchmark_config: BenchmarkConfig):
         set_global_seed(benchmark_config.seed)
         print(f"Warming up for {benchmark_config.warmup_steps} steps...")
 
+        warmup_max_tokens = (benchmark_config.gamma or 4) + 1
         warmup_config = benchmark_config.model_copy(
             update= {
-                "max_new_tokens": benchmark_config.gamma + 1,
+                "max_new_tokens": warmup_max_tokens,
                 "output": "warmup_output.jsonl"
             }
         )

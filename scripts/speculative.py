@@ -222,15 +222,15 @@ def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: M
                     step_k,
                     device,
                     past_key_values=draft_cache,
-                    method=benchmark_config.method,
+                    method=benchmark_config.sampling,
                     temperature=temperature,
                     adaptive_controller=adaptive,
                 )
                 
                 if len(proposed) == 0:
-                    continue
+                    break
 
-                verify_ids = torch.cat([target_pending, proposed_tensor])
+                verify_ids = torch.cat([target_pending, proposed_tensor], dim=1)
 
                 # Verify tokens
                 if benchmark_config.sampling == "greedy":

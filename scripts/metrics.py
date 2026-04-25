@@ -34,9 +34,10 @@ class DeviceTime:
     
 
 def profile(func: Callable) -> Callable:
-    def wrapper(*args, **kwargs):
+    
+    sig = inspect.signature(func)
 
-        sig = inspect.signature(func)
+    def wrapper(*args, **kwargs):
         bound_args = sig.bind(*args, **kwargs)
         bound_args.apply_defaults()
         device = bound_args.arguments.get('device')
@@ -84,6 +85,7 @@ class AdaptiveStep(BaseModel):
     adaptive_time_ms: float
     entropy: float | None = None
     js_distance: float | None = None
+    threshold_v: float | None = None
 
 class SpeculativeMetrics(BaseModel):
     drafted_tokens_total: int = 0
@@ -112,11 +114,12 @@ class SpeculativeMetrics(BaseModel):
             early_stop_time_ms=early_stop_time_ms
         ))
     
-    def update_adaptive(self, adaptive_time_ms: float, entropy: float | None = None, js_distance: float | None = None):
+    def update_adaptive(self, adaptive_time_ms: float, entropy: float | None = None, js_distance: float | None = None, threshold_v: float | None = None):
         self.adaptive_steps.append(AdaptiveStep(
             adaptive_time_ms=adaptive_time_ms,
             entropy=entropy,
-            js_distance=js_distance
+            js_distance=js_distance,
+            threshold_v=threshold_v
         ))
 
 
@@ -142,8 +145,8 @@ class Session(BaseModel):
     def record_speculative(self, proposed: list, accepted: int, k: int, draft_time_ms: float, verify_time_ms: float, early_stop_time_ms: float):
         self.speculative_metrics.update(proposed, accepted, k, draft_time_ms, verify_time_ms, early_stop_time_ms)
     
-    def record_adaptive(self, adaptive_time_ms: float, entropy: float | None = None, js_distance: float | None = None):
-        self.speculative_metrics.update_adaptive(adaptive_time_ms, entropy, js_distance)
+    def record_adaptive(self, adaptive_time_ms: float, entropy: float | None = None, js_distance: float | None = None, threshold_v: float | None = None):
+        self.speculative_metrics.update_adaptive(adaptive_time_ms, entropy, js_distance, threshold_v)
 
     def record_output(self, output_text: str):
         self.output_text = output_text
@@ -174,6 +177,8 @@ class Session(BaseModel):
     def write(self, filepath):
         summary = self.model_dump_json()
         full_path = os.path.join(OUTPUT_DIR, filepath)
+        if "warmup" in full_path:
+            return
         os.makedirs(os.path.dirname(full_path), exist_ok=True)
         with open(full_path, 'a') as f:
             f.write(summary + "\n")

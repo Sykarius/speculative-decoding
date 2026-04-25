@@ -112,6 +112,7 @@ class BenchmarkConfig(BaseModel):
         if self.sampling and self.sampling == "ada":
             if self.adaptive is None or self.adaptive.strategy != "ada":
                 raise ValueError(f"AdaSD adaptive config needs to be provided when sampling is Ada")
+        return self
 
 class ModelInput(BaseModel):
     prompt: str = Field(min_length=1)

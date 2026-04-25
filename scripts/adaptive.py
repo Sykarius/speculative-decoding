@@ -111,6 +111,6 @@ class AdaptiveController:
             self.avg_da = self.config.smoothing_factor * self.avg_da + (1 - self.config.smoothing_factor) * d
         
         if rejected_dist is not None:
-            self.avg_dr = self.config.smoothing_factor * self.avg_da + (1 - self.config.smoothing_factor) * rejected_dist
+            self.avg_dr = self.config.smoothing_factor * self.avg_dr + (1 - self.config.smoothing_factor) * rejected_dist
 
         self.threshold_v = (self.avg_da + self.avg_dr) / 2

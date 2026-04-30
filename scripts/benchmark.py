@@ -100,8 +100,8 @@ def run_benchmark(config_path: str):
     run_warmup(model_pair, benchmark_config)
     set_global_seed(benchmark_config.seed)
 
-    if benchmark_config.prompt:
-        model_input = ModelInput(prompt=benchmark_config.prompt)
+    if benchmark_config.input_prompt:
+        model_input = ModelInput(prompt=benchmark_config.input_prompt)
         run_benchmark_prompt(model_pair, benchmark_config, model_input)
     else:
         run_benchmark_data(model_pair, benchmark_config, benchmark_config.data)

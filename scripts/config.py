@@ -61,6 +61,7 @@ class AdaConfig(BaseAdaptiveConfig):
     high_entropy_threshold: float = Field(default=7.0, gt=0.0)
     avg_da: float = Field(default=0.15, gt=0.0)
     avg_dr: float = Field(default=0.49, gt=0.0)
+    warmup_steps: int = Field(default=10, gt=0)
 
 AdaptiveConfig = Annotated[
     Union[AIMDConfig, EntropyConfig, JSDConfig, AdaConfig],
@@ -79,7 +80,7 @@ class BenchmarkConfig(BaseModel):
     device: DeviceType = Field(default="cpu")
     temperature: float = Field(default=1.0, gt=0.0)
     adaptive: Optional[AdaptiveConfig] = None
-    prompt: Optional[str] = None
+    input_prompt: Optional[str] = None
     data: Optional[str] = None
     draft_model: Optional[str] = None
     dtype: Literal["float16", "bfloat16", "float32", "auto"] = "bfloat16"
@@ -101,9 +102,9 @@ class BenchmarkConfig(BaseModel):
     
     @model_validator(mode="after")
     def check_prompt_or_data(self) -> Self:
-        if not self.prompt and not self.data:
+        if not self.input_prompt and not self.data:
             raise ValueError(f"Either --prompt or --data must be provided.")
-        if self.prompt and self.data:
+        if self.input_prompt and self.data:
             raise ValueError(f"Only one of --prompt or --data can be provided, not both.")
         return self
     

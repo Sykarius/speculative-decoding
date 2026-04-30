@@ -222,7 +222,7 @@ def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: M
                     step_k,
                     device,
                     past_key_values=draft_cache,
-                    method=benchmark_config.sampling,
+                    sampling=benchmark_config.sampling,
                     temperature=temperature,
                     adaptive_controller=adaptive,
                 )

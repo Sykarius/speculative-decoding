@@ -32,15 +32,16 @@ def get_torch_dtype(dtype_str: str):
 
 
 def load_models(benchmark_config: BenchmarkConfig):
-    model_dtype = get_torch_dtype(benchmark_config.dtype)
+    taget_dtype = get_torch_dtype(benchmark_config.target_dtype)
+    draft_dtype = get_torch_dtype(benchmark_config.draft_dtype)
     tokenizer = AutoTokenizer.from_pretrained(benchmark_config.target_model, local_files_only=True)
     
-    target_model = AutoModelForCausalLM.from_pretrained(benchmark_config.target_model, local_files_only=True, torch_dtype=model_dtype)
+    target_model = AutoModelForCausalLM.from_pretrained(benchmark_config.target_model, local_files_only=True, torch_dtype=taget_dtype)
     target_model.eval()
     target_model.to(benchmark_config.device)
 
     if benchmark_config.draft_model:
-        draft_model = AutoModelForCausalLM.from_pretrained(benchmark_config.draft_model, local_files_only=True, torch_dtype=model_dtype)
+        draft_model = AutoModelForCausalLM.from_pretrained(benchmark_config.draft_model, local_files_only=True, torch_dtype=draft_dtype)
         draft_model.eval()
         draft_model.to(benchmark_config.device)
     else:

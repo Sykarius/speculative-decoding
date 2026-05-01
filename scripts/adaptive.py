@@ -14,9 +14,7 @@ class AdaptiveController:
         self.config = config
         self.strategy = config.strategy
 
-        self.early_stop =  self.strategy == "entropy" \
-                or self.strategy == "jsd"  \
-                or self.strategy == "ada"
+        self.early_stop = self.strategy in ("entropy", "jsd", "ada")
         
         self.entropy = None
         self.js_distance = None

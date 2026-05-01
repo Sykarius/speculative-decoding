@@ -9,7 +9,7 @@ from speculative import run as run_speculative
 from config import MethodType, ModelInput, ModelPair, BenchmarkConfig
 from common import load_models, set_global_seed
 
-BASE_DATA_PATH = "./data/nvidia___speed-bench/"
+BASE_DATA_PATH = "/content/drive/MyDrive/Speculative-Decoding-690AB/data/nvidia___speed-bench/"
 
 def create_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Run speculative decoding experiments.")

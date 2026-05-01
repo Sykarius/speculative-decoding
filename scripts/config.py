@@ -83,7 +83,8 @@ class BenchmarkConfig(BaseModel):
     input_prompt: Optional[str] = None
     data: Optional[str] = None
     draft_model: Optional[str] = None
-    dtype: Literal["float16", "bfloat16", "float32", "auto"] = "bfloat16"
+    target_dtype: Literal["float16", "bfloat16", "float32", "auto"] = "bfloat16"
+    draft_dtype: Literal["float16", "bfloat16", "float32", "auto"] = "bfloat16"
     seed: float = Field(default=690)
     warmup_steps: int = Field(default=10, ge=0)
     sampling: SamplingType | None = None

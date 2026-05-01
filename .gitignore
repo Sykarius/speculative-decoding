@@ -39,3 +39,5 @@ data/*
 
 # Regenerated report tables (create with scripts/export_runs_csv.py)
 results/processed/*.csv
+
+results/raw/*.jsonl

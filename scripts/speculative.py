@@ -28,9 +28,6 @@ def draft_tokens(
     next_token_logits = outputs.logits[:, -1, :]
 
     for i in range(gamma):
-        draft_logits.append(next_token_logits)
-
-        # Early Stop in Adaptive Decoding
         if adaptive_controller is not None and adaptive_controller.early_stop:
             with DeviceTime(device) as dt:
                 is_confused = adaptive_controller.entropy_early_exit(next_token_logits)
@@ -38,6 +35,8 @@ def draft_tokens(
             early_exit_time_ms += dt.elapsed_time
             if is_confused:
                 break
+        
+        draft_logits.append(next_token_logits)
         
         if sampling == "greedy":
             # Greedy Sampling

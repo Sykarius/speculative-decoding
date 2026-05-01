@@ -98,8 +98,14 @@ def verify_tokens_stochastic(target, verify_ids, draft_logits, proposed, tempera
     gamma = len(proposed)
 
     target_logits_slice = target_logits[:, -(gamma + 1):, :]
+
+    # Handle vocab size mismatch (e.g., Qwen 14B vs smaller Qwen drafts)
+    min_vocab = min(target_logits_slice.shape[-1], draft_logits.shape[-1])
+    target_logits_slice = target_logits_slice[..., :min_vocab]
+    draft_logits_aligned = draft_logits[..., :min_vocab]
+    
     target_probs = torch.softmax(target_logits_slice / temperature, dim=-1)
-    draft_probs = torch.softmax(draft_logits / temperature, dim=-1)
+    draft_probs = torch.softmax(draft_logits_aligned / temperature, dim=-1)
 
     seq_id = torch.arange(gamma, device=device)
     proposed_tensor = torch.tensor(proposed, device=device, dtype=torch.long)
@@ -142,9 +148,14 @@ def verify_tokens_adasd(
     # Slice target logits to match the proposed window + the bonus token
     target_logits_slice = target_logits[:, -(gamma + 1):, :]
     
+    # Handle vocab size mismatch
+    min_vocab = min(target_logits_slice.shape[-1], draft_logits.shape[-1])
+    target_logits_slice_aligned = target_logits_slice[..., :min_vocab]
+    draft_logits_aligned = draft_logits[..., :min_vocab]
+    
     # Distributions for the proposed tokens (0 to gamma-1)
-    target_probs = torch.softmax(target_logits_slice[:, :-1, :], dim=-1)
-    draft_probs = torch.softmax(draft_logits, dim=-1)
+    target_probs = torch.softmax(target_logits_slice_aligned[:, :-1, :], dim=-1)
+    draft_probs = torch.softmax(draft_logits_aligned, dim=-1)
 
     # Calculate JSD for each token position
     js_distances = compute_js_distance(target_probs, draft_probs).squeeze(0) # [gamma]

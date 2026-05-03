@@ -182,6 +182,24 @@ def verify_tokens_adasd(
     return accepted, next_token, target_logits_slice
 
 
+@profile
+def fallback_target_token(target, input_ids, past_key_values, device, temperature=1.0, sampling="greedy"):
+    outputs = target(
+        input_ids=input_ids,
+        past_key_values=past_key_values,
+        use_cache=True,
+    )
+    logits = outputs.logits[:, -1, :]
+
+    if sampling == "greedy":
+        next_token = int(torch.argmax(logits, dim=-1).item())
+    else:
+        probs = torch.softmax(logits / temperature, dim=-1)
+        next_token = int(torch.multinomial(probs, num_samples=1).item())
+
+    return next_token, logits
+
+
 def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: ModelInput) -> str:
 
     draft = model_pair.draft
@@ -238,7 +256,27 @@ def run(model_pair: ModelPair, benchmark_config: BenchmarkConfig, model_input: M
                 )
                 
                 if len(proposed) == 0:
-                    break
+                    (next_token, target_logits), verify_time_ms = fallback_target_token(
+                        target,
+                        target_pending,
+                        target_cache,
+                        device,
+                        temperature=temperature,
+                        sampling="greedy" if benchmark_config.sampling == "greedy" else "speculative",
+                    )
+
+                    to_emit = [next_token]
+                    emitted_tensor = torch.tensor([to_emit], device=device, dtype=torch.long)
+                    draft_pending = emitted_tensor
+                    target_pending = emitted_tensor
+
+                    session.record(to_emit, dt.elapsed_time)
+                    session.record_speculative([], 0, step_k, verify_time_ms, draft_time_ms, early_stop_time_ms)
+
+                    if is_adaptive:
+                        session.record_adaptive(0.0, adaptive.entropy, adaptive.js_distance, adaptive.threshold_v)
+
+                    continue
 
                 verify_ids = torch.cat([target_pending, proposed_tensor], dim=1)
 

@@ -1,0 +1,904 @@
+================================================================================
+                  SPECULATIVE DECODING 690AB - YAML REFERENCE
+================================================================================
+
+Hardware: 1 x NVIDIA A100-SXM4-40GB on Colab Pro
+Common settings: gamma=4, max_new_tokens=128, dtype=bfloat16, warmup_steps=5
+
+Llama pair: meta-llama/Llama-3.1-8B-Instruct (target) +
+            meta-llama/Llama-3.2-1B-Instruct (draft)
+
+Qwen pair:  Qwen/Qwen2.5-14B-Instruct (target) +
+            Qwen/Qwen2.5-1.5B-Instruct (draft)
+            Qwen/Qwen2.5-0.5B-Instruct (smaller draft, used in smoke only)
+
+
+################################################################################
+# SECTION 1: FULL RUN CONFIGS - LLAMA PAIR
+################################################################################
+
+
+================================================================================
+1.1 BASELINE - Llama 8B (throughput_1k)
+================================================================================
+Path: config/baseline_llama8b_1k.yaml
+Result: 26.59 tok/s, n=1536 (reference, 1.00x)
+
+method: baseline
+target_model: meta-llama/Llama-3.1-8B-Instruct
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+output: "baseline_llama8b_1k.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+
+
+================================================================================
+1.2 SPECULATIVE GREEDY - Llama 1B/8B (throughput_1k)
+================================================================================
+Path: config/speculative_greedy_llama8b_1k.yaml
+Result: 31.15 tok/s, acc 0.687 (1.17x baseline) - BEST METHOD
+
+method: speculative
+sampling: greedy
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+output: "speculative_greedy_llama8b_1k.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+
+
+================================================================================
+1.3 SPECULATIVE STOCHASTIC - Llama 1B/8B (throughput_1k)
+================================================================================
+Path: config/speculative_stochastic_llama8b_1k.yaml
+Result: 24.82 tok/s, acc 0.523 (0.93x baseline)
+
+method: speculative
+sampling: speculative
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+temperature: 0.7
+output: "speculative_stochastic_llama8b_1k.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+
+
+================================================================================
+1.4 ADASD (TUNED) - Llama 1B/8B (throughput_1k)
+================================================================================
+Path: config/speculative_ada_llama8b_1k.yaml
+Result: 27.43 tok/s, acc 0.640 (1.03x baseline)
+Note: avg_da/avg_dr tuned for our pair (paper defaults 0.15/0.49 gave 14 tok/s)
+
+method: speculative
+sampling: ada
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+output: "speculative_ada_llama8b_1k.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+adaptive:
+  strategy: ada
+  gamma_min: 1
+  gamma_max: 8
+  step_size: 1
+  decrease_factor: 0.5
+  smoothing_factor: 0.5
+  high_entropy_threshold: 5.0
+  avg_da: 0.55
+  avg_dr: 0.65
+
+
+================================================================================
+1.5 ADAEDL - Llama 1B/8B (throughput_1k)
+================================================================================
+Path: config/speculative_adaedl_llama8b_1k.yaml
+Result: 21.04 tok/s, acc 0.400 (0.79x baseline) - WEAKEST METHOD
+
+method: speculative
+sampling: speculative
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+temperature: 0.7
+output: "speculative_adaedl_llama8b_1k.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+adaptive:
+  strategy: entropy
+  gamma_min: 1
+  gamma_max: 8
+  step_size: 1
+  decrease_factor: 0.5
+  smoothing_factor: 0.9
+  high_entropy_threshold: 5.0
+  warmup_steps: 10
+  resize: False
+
+
+================================================================================
+1.6 SPECULATIVE GREEDY - Llama 1B/8B (qualitative)
+================================================================================
+Path: config/speculative_greedy_llama8b_qual.yaml
+Result: 30.54 tok/s, acc 0.663, n=1036
+
+method: speculative
+sampling: greedy
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+output: "speculative_greedy_llama8b_qual.jsonl"
+data: "qualitative/0.0.0/487aa718444e816458d1a0a52bfce7a454285cf4/speed-bench-test.arrow"
+warmup_steps: 5
+
+
+================================================================================
+1.7 SPECULATIVE STOCHASTIC - Llama 1B/8B (qualitative)
+================================================================================
+Path: config/speculative_stochastic_llama8b_qual.yaml
+Result: 26.34 tok/s, acc 0.525, n=1036
+
+method: speculative
+sampling: speculative
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+temperature: 0.7
+output: "speculative_stochastic_llama8b_qual.jsonl"
+data: "qualitative/0.0.0/487aa718444e816458d1a0a52bfce7a454285cf4/speed-bench-test.arrow"
+warmup_steps: 5
+
+
+================================================================================
+1.8 ADASD - Llama 1B/8B (qualitative)
+================================================================================
+Path: config/speculative_ada_llama8b_qual.yaml
+Result: 28.12 tok/s, acc 0.623, n=1036
+Note: AdaSD wins on summarization (31.84 vs greedy 30.46)
+
+method: speculative
+sampling: ada
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+output: "speculative_ada_llama8b_qual.jsonl"
+data: "qualitative/0.0.0/487aa718444e816458d1a0a52bfce7a454285cf4/speed-bench-test.arrow"
+warmup_steps: 5
+adaptive:
+  strategy: ada
+  gamma_min: 1
+  gamma_max: 8
+  step_size: 1
+  decrease_factor: 0.5
+  smoothing_factor: 0.5
+  high_entropy_threshold: 5.0
+  avg_da: 0.55
+  avg_dr: 0.65
+
+
+================================================================================
+1.9 ADAEDL - Llama 1B/8B (qualitative)
+================================================================================
+Path: config/speculative_adaedl_llama8b_qual.yaml
+Result: 22.20 tok/s, acc 0.418, n=1036
+Note: Catastrophic on humanities (16.94 tok/s, acc 0.257)
+
+method: speculative
+sampling: speculative
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+temperature: 0.7
+output: "speculative_adaedl_llama8b_qual.jsonl"
+data: "qualitative/0.0.0/487aa718444e816458d1a0a52bfce7a454285cf4/speed-bench-test.arrow"
+warmup_steps: 5
+adaptive:
+  strategy: entropy
+  gamma_min: 1
+  gamma_max: 8
+  step_size: 1
+  decrease_factor: 0.5
+  smoothing_factor: 0.9
+  high_entropy_threshold: 5.0
+  warmup_steps: 10
+  resize: False
+
+
+################################################################################
+# SECTION 2: SMOKE TEST CONFIGS - LLAMA PAIR (n=30)
+################################################################################
+
+
+================================================================================
+2.1 GREEDY SMOKES (gamma sweep)
+================================================================================
+
+--- 2.1.1 smoke30_g2.yaml (gamma=2) ---
+
+method: speculative
+sampling: greedy
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 2
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+output: "smoke30_g2.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+
+
+--- 2.1.2 smoke30_g4.yaml (gamma=4, used for full runs) ---
+
+method: speculative
+sampling: greedy
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+output: "smoke30_g4.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+
+
+================================================================================
+2.2 STOCHASTIC SMOKES
+================================================================================
+
+--- 2.2.1 smoke30_stochastic.yaml (default temp 1.0) ---
+
+method: speculative
+sampling: speculative
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+output: "smoke30_stochastic.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+
+
+--- 2.2.2 smoke30_stochastic_t07.yaml (temp 0.7, used for full runs) ---
+
+method: speculative
+sampling: speculative
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+temperature: 0.7
+output: "smoke30_stochastic_t07.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+
+
+================================================================================
+2.3 ADASD ABLATION SMOKES
+================================================================================
+Threshold sweep results (n=30):
+  Paper defaults (avg_da=0.15, avg_dr=0.49, smooth=0.9): 14.25 tok/s, acc 0.189
+  Config A (avg_da=0.30, avg_dr=0.50):                    15.48 tok/s, acc 0.233
+  Config B (avg_da=0.40, avg_dr=0.50, smooth=0.5):        20.12 tok/s, acc 0.440
+  Config C (avg_da=0.50, avg_dr=0.60, smooth=0.5):        21.61 tok/s, acc 0.491
+  Final  (avg_da=0.55, avg_dr=0.65, smooth=0.5):          26.56 tok/s, acc 0.641 [USED FOR FULL]
+
+
+--- 2.3.1 smoke30_ada.yaml (paper defaults) ---
+
+method: speculative
+sampling: ada
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+output: "smoke30_ada.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+adaptive:
+  strategy: ada
+  gamma_min: 1
+  gamma_max: 8
+  step_size: 1
+  decrease_factor: 0.5
+  smoothing_factor: 0.9
+  high_entropy_threshold: 7.0
+  avg_da: 0.15
+  avg_dr: 0.49
+
+
+--- 2.3.2 smoke30_ada_A.yaml ---
+
+method: speculative
+sampling: ada
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+output: "smoke30_ada_A.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+adaptive:
+  strategy: ada
+  gamma_min: 1
+  gamma_max: 8
+  step_size: 1
+  decrease_factor: 0.5
+  smoothing_factor: 0.9
+  high_entropy_threshold: 7.0
+  avg_da: 0.30
+  avg_dr: 0.50
+
+
+--- 2.3.3 smoke30_ada_B.yaml ---
+
+method: speculative
+sampling: ada
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+output: "smoke30_ada_B.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+adaptive:
+  strategy: ada
+  gamma_min: 1
+  gamma_max: 8
+  step_size: 1
+  decrease_factor: 0.5
+  smoothing_factor: 0.5
+  high_entropy_threshold: 5.0
+  avg_da: 0.40
+  avg_dr: 0.50
+
+
+--- 2.3.4 smoke30_ada_C.yaml ---
+
+method: speculative
+sampling: ada
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+output: "smoke30_ada_C.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+adaptive:
+  strategy: ada
+  gamma_min: 1
+  gamma_max: 8
+  step_size: 1
+  decrease_factor: 0.5
+  smoothing_factor: 0.5
+  high_entropy_threshold: 5.0
+  avg_da: 0.50
+  avg_dr: 0.60
+
+
+================================================================================
+2.4 ADAEDL THRESHOLD SWEEP SMOKES
+================================================================================
+Threshold sweep results (n=30):
+  t=4.0: 20.65 tok/s, acc 0.402  (over-aggressive)
+  t=5.0: 22.30 tok/s, acc 0.429  [USED FOR FULL]
+  t=7.0: 22.77 tok/s, acc 0.446  (basically no-op vs stochastic)
+  Plain stochastic baseline: 22.21 tok/s, acc 0.445
+
+
+--- 2.4.1 smoke30_adaedl.yaml (threshold 5.0) ---
+
+method: speculative
+sampling: speculative
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+temperature: 0.7
+output: "smoke30_adaedl.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+adaptive:
+  strategy: entropy
+  gamma_min: 1
+  gamma_max: 8
+  step_size: 1
+  decrease_factor: 0.5
+  smoothing_factor: 0.9
+  high_entropy_threshold: 5.0
+  warmup_steps: 10
+  resize: False
+
+
+--- 2.4.2 smoke30_adaedl_t4.yaml (threshold 4.0) ---
+
+method: speculative
+sampling: speculative
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+temperature: 0.7
+output: "smoke30_adaedl_t4.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+adaptive:
+  strategy: entropy
+  gamma_min: 1
+  gamma_max: 8
+  step_size: 1
+  decrease_factor: 0.5
+  smoothing_factor: 0.9
+  high_entropy_threshold: 4.0
+  warmup_steps: 10
+  resize: False
+
+
+--- 2.4.3 smoke30_adaedl_t7.yaml (threshold 7.0) ---
+
+method: speculative
+sampling: speculative
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+temperature: 0.7
+output: "smoke30_adaedl_t7.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+adaptive:
+  strategy: entropy
+  gamma_min: 1
+  gamma_max: 8
+  step_size: 1
+  decrease_factor: 0.5
+  smoothing_factor: 0.9
+  high_entropy_threshold: 7.0
+  warmup_steps: 10
+  resize: False
+
+
+================================================================================
+2.5 JSD ABLATION SMOKES
+================================================================================
+Threshold sweep results (n=30, sampling=speculative, t=0.7):
+  Paper defaults  (low=0.1, high=0.3): 21.82 tok/s, acc 0.466
+  Mid             (low=0.2, high=0.4): 19.61 tok/s, acc 0.376
+  Tuned           (low=0.3, high=0.5): 21.06 tok/s, acc 0.393
+  Aggressive      (low=0.4, high=0.55): 18.08 tok/s, acc 0.336
+Conclusion: Defaults won (collapsed to gamma=1-2). JSD doesn't help on this pair.
+
+
+--- 2.5.1 smoke30_jsd_paper.yaml (paper defaults, used for full) ---
+
+method: speculative
+sampling: speculative
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+temperature: 0.7
+output: "smoke30_jsd_paper.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+adaptive:
+  strategy: jsd
+  gamma_min: 1
+  gamma_max: 8
+  step_size: 1
+  decrease_factor: 0.5
+  smoothing_factor: 0.9
+  low_jsd_threshold: 0.1
+  high_jsd_threshold: 0.3
+  high_entropy_threshold: 5.0
+  warmup_steps: 10
+
+
+--- 2.5.2 smoke30_jsd_mid.yaml ---
+
+method: speculative
+sampling: speculative
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+temperature: 0.7
+output: "smoke30_jsd_mid.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+adaptive:
+  strategy: jsd
+  gamma_min: 1
+  gamma_max: 8
+  step_size: 1
+  decrease_factor: 0.5
+  smoothing_factor: 0.9
+  low_jsd_threshold: 0.2
+  high_jsd_threshold: 0.4
+  high_entropy_threshold: 5.0
+  warmup_steps: 10
+
+
+--- 2.5.3 smoke30_jsd_tuned.yaml ---
+
+method: speculative
+sampling: speculative
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+temperature: 0.7
+output: "smoke30_jsd_tuned.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+adaptive:
+  strategy: jsd
+  gamma_min: 1
+  gamma_max: 8
+  step_size: 1
+  decrease_factor: 0.5
+  smoothing_factor: 0.9
+  low_jsd_threshold: 0.3
+  high_jsd_threshold: 0.5
+  high_entropy_threshold: 5.0
+  warmup_steps: 10
+
+
+--- 2.5.4 smoke30_jsd_aggressive.yaml ---
+
+method: speculative
+sampling: speculative
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+temperature: 0.7
+output: "smoke30_jsd_aggressive.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+adaptive:
+  strategy: jsd
+  gamma_min: 1
+  gamma_max: 8
+  step_size: 1
+  decrease_factor: 0.5
+  smoothing_factor: 0.9
+  low_jsd_threshold: 0.4
+  high_jsd_threshold: 0.55
+  high_entropy_threshold: 5.0
+  warmup_steps: 10
+
+
+================================================================================
+2.6 JSD FULL RUN (post-smoke ablation)
+================================================================================
+
+--- speculative_jsd_llama8b_1k.yaml ---
+Path: config/speculative_jsd_llama8b_1k.yaml
+
+method: speculative
+sampling: speculative
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+temperature: 0.7
+output: "speculative_jsd_llama8b_1k.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+adaptive:
+  strategy: jsd
+  gamma_min: 1
+  gamma_max: 8
+  step_size: 1
+  decrease_factor: 0.5
+  smoothing_factor: 0.9
+  low_jsd_threshold: 0.1
+  high_jsd_threshold: 0.3
+  high_entropy_threshold: 5.0
+  warmup_steps: 10
+
+
+================================================================================
+2.7 QUALITATIVE SMOKES (Llama)
+================================================================================
+
+--- 2.7.1 smoke30_greedy_qual.yaml ---
+
+method: speculative
+sampling: greedy
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+output: "smoke30_greedy_qual.jsonl"
+data: "qualitative/0.0.0/487aa718444e816458d1a0a52bfce7a454285cf4/speed-bench-test.arrow"
+warmup_steps: 5
+
+
+--- 2.7.2 smoke30_stochastic_qual.yaml ---
+
+method: speculative
+sampling: speculative
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+temperature: 0.7
+output: "smoke30_stochastic_qual.jsonl"
+data: "qualitative/0.0.0/487aa718444e816458d1a0a52bfce7a454285cf4/speed-bench-test.arrow"
+warmup_steps: 5
+
+
+--- 2.7.3 smoke30_ada_qual.yaml ---
+
+method: speculative
+sampling: ada
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+output: "smoke30_ada_qual.jsonl"
+data: "qualitative/0.0.0/487aa718444e816458d1a0a52bfce7a454285cf4/speed-bench-test.arrow"
+warmup_steps: 5
+adaptive:
+  strategy: ada
+  gamma_min: 1
+  gamma_max: 8
+  step_size: 1
+  decrease_factor: 0.5
+  smoothing_factor: 0.5
+  high_entropy_threshold: 5.0
+  avg_da: 0.55
+  avg_dr: 0.65
+
+
+--- 2.7.4 smoke30_adaedl_qual.yaml ---
+
+method: speculative
+sampling: speculative
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+dtype: bfloat16
+temperature: 0.7
+output: "smoke30_adaedl_qual.jsonl"
+data: "qualitative/0.0.0/487aa718444e816458d1a0a52bfce7a454285cf4/speed-bench-test.arrow"
+warmup_steps: 5
+adaptive:
+  strategy: entropy
+  gamma_min: 1
+  gamma_max: 8
+  step_size: 1
+  decrease_factor: 0.5
+  smoothing_factor: 0.9
+  high_entropy_threshold: 5.0
+  warmup_steps: 10
+  resize: False
+
+
+################################################################################
+# SECTION 3: QWEN PAIR EXPLORATION (smoke only)
+################################################################################
+Note: Qwen runs use new schema (target_dtype/draft_dtype, post-Harish refactor).
+
+
+================================================================================
+3.1 QWEN 14B BASELINE (smoke)
+================================================================================
+Result: 17.11 tok/s, n=30
+
+method: baseline
+target_model: Qwen/Qwen2.5-14B-Instruct
+max_new_tokens: 128
+device: cuda
+target_dtype: bfloat16
+output: "smoke30_qwen14b_baseline.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+
+
+================================================================================
+3.2 QWEN 0.5B/14B GREEDY (smoke)
+================================================================================
+Result: 16.90 tok/s, acc 0.548 - NO speedup (basically tied with baseline)
+
+method: speculative
+sampling: greedy
+target_model: Qwen/Qwen2.5-14B-Instruct
+draft_model: Qwen/Qwen2.5-0.5B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+target_dtype: bfloat16
+draft_dtype: bfloat16
+output: "smoke30_qwen_05b_14b_greedy.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+
+
+================================================================================
+3.3 QWEN 1.5B/14B GREEDY (smoke)
+================================================================================
+Result: 17.17 tok/s, acc 0.632 - tied with baseline
+
+method: speculative
+sampling: greedy
+target_model: Qwen/Qwen2.5-14B-Instruct
+draft_model: Qwen/Qwen2.5-1.5B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+target_dtype: bfloat16
+draft_dtype: bfloat16
+output: "smoke30_qwen_15b_14b_greedy.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+
+
+================================================================================
+3.4 QWEN 1.5B/14B STOCHASTIC (smoke)
+================================================================================
+Result: 14.93 tok/s, acc 0.511 - underperforms baseline
+Note: Required vocab-size patch in speculative.py (14B has 152064 vs 1.5B's 151936)
+
+method: speculative
+sampling: speculative
+target_model: Qwen/Qwen2.5-14B-Instruct
+draft_model: Qwen/Qwen2.5-1.5B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+target_dtype: bfloat16
+draft_dtype: bfloat16
+temperature: 0.7
+output: "smoke30_qwen_15b_14b_stochastic.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+
+
+################################################################################
+# SECTION 4: QWEN PAIR FULL RUNS (1.5B/14B, throughput_1k)
+################################################################################
+
+
+================================================================================
+4.1 QWEN 14B BASELINE (full)
+================================================================================
+Path: config/baseline_qwen14b_1k.yaml
+
+method: baseline
+target_model: Qwen/Qwen2.5-14B-Instruct
+max_new_tokens: 128
+device: cuda
+target_dtype: bfloat16
+output: "baseline_qwen14b_1k.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+
+
+================================================================================
+4.2 QWEN 1.5B/14B GREEDY (full)
+================================================================================
+Path: config/speculative_greedy_qwen_15b_14b_1k.yaml
+
+method: speculative
+sampling: greedy
+target_model: Qwen/Qwen2.5-14B-Instruct
+draft_model: Qwen/Qwen2.5-1.5B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+target_dtype: bfloat16
+draft_dtype: bfloat16
+output: "speculative_greedy_qwen_15b_14b_1k.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+
+
+################################################################################
+# SECTION 5: ADAEDL FOLLOWUP SMOKE (smoothing tweak)
+################################################################################
+
+
+================================================================================
+5.1 ADAEDL SMOOTHING=0.3 (proposed smoke)
+================================================================================
+Hypothesis: lower smoothing -> entropy more reactive per-token, early-exit
+fires only on genuinely uncertain tokens, not "remembering" past uncertainty.
+Comparison: AdaEDL smooth=0.9 (current full): 22.30 tok/s, acc 0.429
+
+method: speculative
+sampling: speculative
+target_model: meta-llama/Llama-3.1-8B-Instruct
+draft_model: meta-llama/Llama-3.2-1B-Instruct
+gamma: 4
+max_new_tokens: 128
+device: cuda
+target_dtype: bfloat16
+draft_dtype: bfloat16
+temperature: 0.7
+output: "smoke30_adaedl_smooth03.jsonl"
+data: "throughput_1k/0.0.0/41e0d489c7074b1cd4ced3f1ee0e127511c3e091/speed-bench-test.arrow"
+warmup_steps: 5
+adaptive:
+  strategy: entropy
+  gamma_min: 1
+  gamma_max: 8
+  step_size: 1
+  decrease_factor: 0.5
+  smoothing_factor: 0.3
+  high_entropy_threshold: 5.0
+  warmup_steps: 10
+  resize: False
+
+
+================================================================================
+                              END OF REFERENCE
+================================================================================
